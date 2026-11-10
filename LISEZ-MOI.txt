@@ -1,0 +1,53 @@
+MON BUDGET+  (version avec onglet Patrimoine et objectifs d'épargne)
+=====================================================================
+Cette version est INDÉPENDANTE de ton appli actuelle : elle s'installe À CÔTÉ, avec son propre
+nom (« Mon Budget+ ») et ses propres données. Ton ancienne appli n'est pas touchée.
+- Dézippe dans un NOUVEAU dossier (ne remplace pas l'ancien).
+- Premier lancement : les données ne sont pas reprises automatiquement sur téléphone. Dans
+  l'ancienne appli : Réglages > Sauvegarde > Copier ; dans Mon Budget+ : Réglages > Restaurer > coller.
+  (Cela ne supprime rien dans l'ancienne appli.)
+
+Pour le web : mets ces fichiers dans un AUTRE dépôt GitHub (ou un autre dossier) que l'ancienne version.
+
+MON BUDGET — version installable (iPhone + Android)
+====================================================
+
+Contenu du dossier
+- index.html            : l'application
+- manifest.webmanifest  : nom, icône et plein écran
+- sw.js                 : fonctionnement hors-ligne
+- icon-*.png, apple-touch-icon.png : icônes
+
+ÉTAPE 1 — Créer le dépôt GitHub
+1. Sur github.com, clique sur « + » (en haut à droite) puis « New repository ».
+2. Nom : budget  (tu peux en choisir un autre, il fera partie de l'adresse).
+3. Laisse « Public » (obligatoire pour l'hébergement gratuit), puis « Create repository ».
+   Seul le code de l'appli sera public. Tes chiffres restent dans les téléphones et ne passent jamais par GitHub.
+
+ÉTAPE 2 — Déposer les fichiers
+1. Dézippe d'abord le fichier sur ton ordinateur.
+2. Dans ton nouveau dépôt, clique sur « uploading an existing file ».
+3. Glisse TOUS les fichiers du dossier (pas le zip lui-même), puis « Commit changes ».
+
+ÉTAPE 3 — Activer l'hébergement (GitHub Pages)
+1. Dans le dépôt : Settings > Pages.
+2. « Source » : « Deploy from a branch ».
+3. « Branch » : main, dossier « / (root) », puis Save.
+4. Attends 1 à 2 minutes. L'adresse apparaît en haut de la page :
+   https://TON-PSEUDO.github.io/budget/
+
+ÉTAPE 4 — Installer sur chaque téléphone
+- iPhone (dans Safari uniquement) : bouton Partager > « Sur l'écran d'accueil ».
+- Android (dans Chrome) : menu ⋮ > « Installer l'application » (ou « Ajouter à l'écran d'accueil »).
+Ouvre ensuite l'appli depuis l'icône : elle s'affiche en plein écran et marche sans réseau.
+
+METTRE À JOUR L'APPLI
+Remplace le fichier index.html dans le dépôt (Add file > Upload files). Sur les téléphones,
+ouvre l'appli deux fois : la nouvelle version est récupérée en arrière-plan à la première
+ouverture, puis affichée à la seconde.
+
+TES DONNÉES
+- Elles sont enregistrées dans chaque téléphone, séparément. Personne d'autre ne les voit.
+- Sauvegarde régulière : Réglages > Afficher la sauvegarde > Copier. Pour passer d'un téléphone
+  à un autre : copie la sauvegarde, puis Réglages > Restaurer sur l'autre téléphone.
+- Ne supprime pas l'appli et n'efface pas les données du navigateur sans sauvegarde.
