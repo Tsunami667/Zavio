@@ -1,7 +1,7 @@
 /* Service worker : l'appli fonctionne hors-ligne.
    Stratégie : on sert la copie en cache tout de suite, et on la met à jour en arrière-plan.
    Une mise à jour du site devient donc visible à la 2e ouverture de l'appli. */
-const CACHE = 'budget-plus-v1';
+const CACHE = 'zavio-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

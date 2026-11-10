@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Mon Budget+</title>
+<title>Zavio</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#5b4de0">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Budget+">
+<meta name="apple-mobile-web-app-title" content="Zavio">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -1572,7 +1572,7 @@ $('content').onclick=function(e){
     $('bkClose').onclick=closeSheet;
     $('bkCopy').onclick=function(){copyFrom($('bk'));};
     if($('bkShare'))$('bkShare').onclick=function(){
-      navigator.share({files:[new File(['\ufeff'+csv],'budget.csv',{type:'text/csv'})],title:'Budget'}).catch(function(){toast('Partage impossible, utilise Copier');});
+      navigator.share({files:[new File(['\ufeff'+csv],'zavio.csv',{type:'text/csv'})],title:'Zavio'}).catch(function(){toast('Partage impossible, utilise Copier');});
     };
   }else if(b.id==='sExp'||b.id==='sBackupNow'){
     openSheet('<h2>Sauvegarde</h2><div class="note">Copie ce texte et garde-le dans une note ou un message à toi-même.</div><label>Contenu</label><textarea id="bk" readonly></textarea><button class="btn" id="bkCopy">Copier</button><button class="btn sec" id="bkClose">Fermer</button>');
