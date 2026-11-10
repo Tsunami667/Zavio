@@ -231,7 +231,7 @@ nav button.on{color:var(--accent);background:var(--accentSoft)}
 <body>
 <div id="app">
   <header id="hdr">
-    <div class="ttl"><h1 id="hTitle">Mon budget</h1><div class="sub" id="hSub"></div></div>
+    <div class="ttl"><h1 id="hTitle">Zavio</h1><div class="sub" id="hSub"></div></div>
     <button class="pill" id="btnAll" style="display:none">Tout</button>
     <button class="pill" id="btnToday">Aujourd'hui</button>
   </header>
@@ -538,6 +538,28 @@ function legsOf(tx){return db.txs.filter(function(t){return t.transferId&&t.tran
 function removeTx(tx){db.txs=db.txs.filter(function(t){return t.id!==tx.id&&!(tx.transferId&&t.transferId===tx.transferId);});}
 function accOptions(sel){return db.accounts.map(function(a){return '<option value="'+a.id+'"'+(a.id===sel?' selected':'')+'>'+esc(a.name)+'</option>';}).join('');}
 function setChecked(t,v){t.checked=v;if(v&&t.est)t.est=false;}
+function askReal(t,after){
+  var sg=t.amount<0?-1:1;
+  $('dlgBox').onclick=null;
+  $('dlgBox').innerHTML='<h3>Montant réel ?</h3><div class="note" style="margin:0 0 8px">« '+esc(txTitle(t)||'Opération')+' » était estimé à '+esc(money(Math.abs(t.amount)))+'.</div><input id="rAmt" inputmode="decimal" autocomplete="off" value="'+String(Math.abs(t.amount)).replace('.',',')+'" style="width:100%;border:0;background:var(--field);color:var(--text);border-radius:14px;padding:13px;font-size:16px;font-family:inherit"><button class="btn" id="rOk">Pointer</button><button class="btn sec" id="rCancel">Annuler</button>';
+  $('dlg').classList.add('show');
+  var el=$('rAmt');try{el.focus();el.select();}catch(er){}
+  function ok(){
+    var a=parseAmount(el.value);
+    if(a===null||a<=0){toast('Entre un montant supérieur à 0');return;}
+    $('dlg').classList.remove('show');
+    if(t.transferId)legsOf(t).forEach(function(g){g.amount=(g.amount<0?-1:1)*a;g.est=false;});
+    else t.amount=sg*a;
+    setChecked(t,true);after();
+  }
+  $('rOk').onclick=ok;
+  $('rCancel').onclick=function(){$('dlg').classList.remove('show');render(true);};
+  el.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();ok();}};
+}
+function pointTx(t,after){
+  if(!t.checked&&t.est){askReal(t,after);return;}
+  setChecked(t,true);after();
+}
 function confirmUncheck(list,fn){
   var n=list.length,ttl;
   if(n===1)ttl='Dépointer « '+(txTitle(list[0])||'Opération')+' » ('+money(list[0].amount)+') ?';
@@ -589,7 +611,7 @@ function formSheet(mode,item,tpl){
   h+='<div class="calcrow"><button type="button" data-op="+">+</button><button type="button" data-op="−">−</button><button type="button" data-op="×">×</button><button type="button" data-op="÷">÷</button><button type="button" data-op="=">=</button></div>';
   h+='<div class="note" id="calcPrev" style="margin-top:4px;min-height:1.2em"></div>';
   h+='<label class="chkrow"><input type="checkbox" id="fEst"'+(est0?' checked':'')+'> Montant estimé</label>';
-  h+='<div class="note" style="margin-top:2px">Affiché avec un « ~ » en italique. Pointer l\'opération confirme le montant.</div>';
+  h+='<div class="note" style="margin-top:2px">Affiché avec un « ~ » en italique. Pointer l\'opération te demandera le montant réel.</div>';
   h+='<label>Description (facultatif)</label><input id="fNote" value="'+esc(note)+'">';
   h+='<label>'+(isRule?'Première échéance':'Date')+'</label><input type="date" id="fDate" value="'+date+'">';
   if(isRule||isNew){
@@ -1203,6 +1225,7 @@ function monthYear(s){return parse(s).toLocaleDateString('fr-FR',{month:'short',
 function loanCalc(P,rate,n){var r=rate/1200;return r2(r?P*r/(1-Math.pow(1+r,-n)):P/n);}
 function loanPaid(l,date){var k=0;while(k<l.months&&addMonths(l.first,k)<=date)k++;return k;}
 function loanRemaining(l,date){
+  if(l.simple)return Math.max(0,r2(+l.balance||0));
   var k=loanPaid(l,date);if(k>=l.months)return 0;
   var r=l.rate/1200,B=l.principal;
   for(var i=0;i<k;i++)B-=(l.monthly-B*r);
@@ -1298,7 +1321,7 @@ function patProjection(t,T){
     var dl=r2(p-T.net),pc=T.net>0?(dl>0?'+':'')+pctTxt(dl/T.net*100)+' %':'';
     h+='<div class="row"><div class="ico" style="background:#8e8e992e">🔮</div><div class="mid"><div class="t">Dans '+n+' an'+(n>1?'s':'')+' · '+esc(monthYear(D))+'</div><div class="s">'+esc(signed(dl)+' '+cur()+' par rapport à aujourd\'hui')+'</div>'+'</div><div class="right" style="flex-direction:column;align-items:flex-end;gap:1px"><div class="amt'+(p<0?' neg':'')+'">'+esc(money(p))+'</div>'+(pc?'<div class="pctv'+(dl>0?' pos':dl<0?' neg':'')+'">'+esc(pc)+'</div>':'')+'</div></div>';
   });
-  h+='</div><div class="pempty">Estimation : tes opérations récurrentes (salaire, loyer, abonnements…) continuent à l\'identique. Les crédits se remboursent selon leur tableau d\'amortissement. Les biens gardent leur valeur actuelle, sauf si tu indiques une évolution annuelle estimée dans leur fiche.</div>';
+  h+='</div><div class="pempty">Estimation : tes opérations récurrentes (salaire, loyer, abonnements…) continuent à l\'identique. Les crédits se remboursent selon leur tableau d\'amortissement (un crédit saisi avec le seul solde restant garde ce montant). Les biens gardent leur valeur actuelle, sauf si tu indiques une évolution annuelle estimée dans leur fiche.</div>';
   return h;
 }
 function histSheet(){
@@ -1344,7 +1367,7 @@ function renderPat(){
   function loanRow(l,sub){
     var k=loanPaid(l,t),left=l.months-k,rem=loanRemaining(l,t);
     var as=!sub&&l.assetId?assetById(l.assetId):null;
-    var txt='Mensualité '+money(l.monthly)+' · '+(left>0?left+' restante'+(left>1?'s':'')+' · fin '+monthYear(loanEnd(l)):'terminé');
+    var txt=l.simple?('Solde restant'+(l.balanceDate?' · saisi le '+parse(l.balanceDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'')):('Mensualité '+money(l.monthly)+' · '+(left>0?left+' restante'+(left>1?'s':'')+' · fin '+monthYear(loanEnd(l)):'terminé'));
     return '<div class="row'+(sub?' lsub':'')+'" data-loan="'+l.id+'"><div class="ico" style="background:#8e8e992e">'+(sub?'↳':'🏦')+'</div><div class="mid"><div class="t">'+esc(l.name)+(as?' <span class="rec">'+esc(as.name)+'</span>':'')+'</div><div class="s">'+esc(txt)+'</div></div><div class="right"><div class="amt'+(rem>0?' neg':'')+'">'+esc(money(rem))+'</div></div></div>';
   }
   h+='<div class="phead">Biens</div>';
@@ -1439,27 +1462,67 @@ function loanCatId(){
   if(!c){c={id:uid(),name:'Crédit',icon:'🏦',color:'#6c757d',type:'exp',parentId:''};db.cats.push(c);}
   return c.id;
 }
-function loanSheet(l,presetAsset){
+function loanSheet(l,presetAsset,modeArg,draft){
   var isNew=!l;
+  draft=draft||{};
+  var simple=modeArg?modeArg==='simple':!!(l&&l.simple);
+  var canSwitch=isNew||!!(l&&l.simple);
+  var d0=(l&&!l.simple)?l:null;
+  var nm=draft.name!==undefined?draft.name:(l?l.name:'');
+  var as0=draft.asset!==undefined?draft.asset:(l?l.assetId:presetAsset);
+  function wireMode(){
+    if(!$('lMode'))return;
+    $('lMode').onclick=function(e){
+      var b=e.target.closest('button');if(!b)return;
+      var m=b.getAttribute('data-m');if((m==='simple')===simple)return;
+      loanSheet(l,presetAsset,m,{name:$('lName').value,asset:$('lAsset').value});
+    };
+  }
   var h='<h2>'+(isNew?'Nouveau crédit':'Modifier le crédit')+'</h2>';
-  h+='<label style="margin-top:0">Nom</label><input id="lName" value="'+esc(l?l.name:'')+'" placeholder="Ex. Crédit immobilier, Prêt auto">';
-  h+='<label>Bien concerné (facultatif)</label><select id="lAsset"><option value="">Aucun</option>'+db.assets.map(function(a){return '<option value="'+a.id+'"'+((l?l.assetId:presetAsset)===a.id?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+'</select>';
-  h+='<label>Capital emprunté ('+esc(cur())+')</label><input id="lCap" inputmode="decimal" value="'+numIn(l&&l.principal)+'" placeholder="0,00">';
-  h+='<label>Taux annuel (%)</label><input id="lRate" inputmode="decimal" value="'+(l?numIn(l.rate):'')+'" placeholder="Ex. 3,5 (hors assurance)">';
-  h+='<label>Durée (en mois)</label><input id="lMonths" inputmode="numeric" value="'+(l?l.months:'')+'" placeholder="Ex. 240 pour 20 ans">';
-  h+='<label>Date de la 1re mensualité</label><input type="date" id="lFirst" value="'+esc(l?l.first:todayStr())+'">';
-  h+='<label>Mensualité (laisse vide pour la calculer)</label><input id="lMonthly" inputmode="decimal" value="'+(l?numIn(l.monthly):'')+'" placeholder="Calculée automatiquement">';
+  if(canSwitch)h+='<div class="seg" id="lMode" style="margin-bottom:4px"><button data-m="detail" class="exp '+(simple?'':'on')+'">Détaillé</button><button data-m="simple" class="exp '+(simple?'on':'')+'">Juste le solde</button></div>';
+  h+='<label'+(canSwitch?'':' style="margin-top:0"')+'>Nom</label><input id="lName" value="'+esc(nm)+'" placeholder="Ex. Crédit immobilier, Prêt auto">';
+  h+='<label>Bien concerné (facultatif)</label><select id="lAsset"><option value="">Aucun</option>'+db.assets.map(function(a){return '<option value="'+a.id+'"'+(as0===a.id?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+'</select>';
+  if(simple){
+    h+='<label>Montant restant dû ('+esc(cur())+')</label><input id="lBal" inputmode="decimal" value="'+(l&&l.simple?numIn(l.balance):'')+'" placeholder="0,00">';
+    h+='<div class="note">Pratique si tu n\'as pas le taux, la durée ou le tableau d\'amortissement : seul le solde restant compte dans ton patrimoine. Ce montant reste fixe dans l\'appli, pense à le mettre à jour de temps en temps.'+(l&&l.simple&&l.balanceDate?' Dernière mise à jour : '+esc(parse(l.balanceDate).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}))+'.':'')+'</div>';
+    h+='<button class="btn" id="lSave">Enregistrer</button>';
+    if(!isNew)h+='<button class="btn del" id="lDel">Supprimer</button>';
+    h+='<button class="btn sec" id="lCancel">Annuler</button>';
+    openSheet(h);
+    wireMode();
+    $('lCancel').onclick=closeSheet;
+    $('lSave').onclick=function(){
+      var n1=$('lName').value.trim();if(!n1){toast('Donne un nom au crédit');return;}
+      var b=parseAmount($('lBal').value);
+      if(!(b>0)){toast('Montant restant invalide');return;}
+      var t1=todayStr();
+      var o={name:n1,assetId:$('lAsset').value,simple:true,balance:r2(b),balanceDate:t1,principal:r2(b),rate:0,months:0,first:t1,monthly:0};
+      if(isNew){o.id=uid();o.ruleId='';db.loans.push(o);}
+      else for(var k1 in o)l[k1]=o[k1];
+      save();closeSheet();render();
+    };
+    if($('lDel'))$('lDel').onclick=function(){
+      choose('Supprimer « '+l.name+' » ?',[{label:'Supprimer le crédit',cls:'del',fn:function(){db.loans=db.loans.filter(function(x){return x!==l;});save();closeSheet();render();}},{label:'Annuler',cls:'sec'}]);
+    };
+    return;
+  }
+  h+='<label>Capital emprunté ('+esc(cur())+')</label><input id="lCap" inputmode="decimal" value="'+numIn(d0&&d0.principal)+'" placeholder="0,00">';
+  h+='<label>Taux annuel (%)</label><input id="lRate" inputmode="decimal" value="'+(d0?numIn(d0.rate):'')+'" placeholder="Ex. 3,5 (hors assurance)">';
+  h+='<label>Durée (en mois)</label><input id="lMonths" inputmode="numeric" value="'+(d0?d0.months:'')+'" placeholder="Ex. 240 pour 20 ans">';
+  h+='<label>Date de la 1re mensualité</label><input type="date" id="lFirst" value="'+esc(d0?d0.first:todayStr())+'">';
+  h+='<label>Mensualité (laisse vide pour la calculer)</label><input id="lMonthly" inputmode="decimal" value="'+(d0?numIn(d0.monthly):'')+'" placeholder="Calculée automatiquement">';
   h+='<div class="note" id="lNote"></div>';
   var hasRule=l&&l.ruleId&&byId(db.rules,l.ruleId);
   if(hasRule)h+='<div class="note">Les mensualités sont déjà dans tes opérations récurrentes. Pour changer leur montant, modifie-les dans l\'onglet Récurrentes.</div>';
   else{
-    h+='<label class="chkrow"><input type="checkbox" id="lRule"'+(isNew?' checked':'')+'> Ajouter les mensualités à mon budget</label>';
+    h+='<label class="chkrow"><input type="checkbox" id="lRule"'+(isNew||(l&&l.simple)?' checked':'')+'> Ajouter les mensualités à mon budget</label>';
     h+='<label>Compte débité</label><select id="lAcc">'+db.accounts.map(function(a){return '<option value="'+a.id+'"'+(a.id===curAcc().id?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+'</select>';
   }
   h+='<button class="btn" id="lSave">Enregistrer</button>';
   if(!isNew)h+='<button class="btn del" id="lDel">Supprimer</button>';
   h+='<button class="btn sec" id="lCancel">Annuler</button>';
   openSheet(h);
+  wireMode();
   function read(){
     var P=parseAmount($('lCap').value),rt=$('lRate').value.trim()===''?0:parseAmount($('lRate').value),n=parseInt($('lMonths').value,10);
     var mo=$('lMonthly').value.trim()===''?null:parseAmount($('lMonthly').value);
@@ -1484,9 +1547,9 @@ function loanSheet(l,presetAsset){
     if(v.mo===null&&$('lMonthly').value.trim()!==''){toast('Mensualité invalide');return;}
     if(!$('lFirst').value){toast('Indique la date de la 1re mensualité');return;}
     var mo=v.mo>0?r2(v.mo):loanCalc(v.P,v.rt,v.n);
-    var obj={name:n0,assetId:$('lAsset').value,principal:v.P,rate:v.rt,months:v.n,first:$('lFirst').value,monthly:mo};
+    var obj={name:n0,assetId:$('lAsset').value,principal:v.P,rate:v.rt,months:v.n,first:$('lFirst').value,monthly:mo,simple:false};
     if(isNew){obj.id=uid();obj.ruleId='';l=obj;db.loans.push(l);}
-    else for(var k in obj)l[k]=obj[k];
+    else{for(var k in obj)l[k]=obj[k];delete l.balance;delete l.balanceDate;}
     if(!hasRule&&$('lRule')&&$('lRule').checked){
       var t=todayStr(),paid=loanPaid(l,t);
       if(paid<l.months){
@@ -1543,7 +1606,7 @@ $('content').onclick=function(e){
   var chk=e.target.closest('[data-chk]');
   if(chk){var t=txById(chk.getAttribute('data-chk'));if(t){
     if(t.checked){confirmUncheck([t],function(){setChecked(t,false);save();render(true);toast('Pointage retiré');});}
-    else{setChecked(t,true);save();render(true);}
+    else{pointTx(t,function(){save();render(true);});}
   }return;}
   var row=e.target.closest('.row');
   if(row){
@@ -1698,7 +1761,7 @@ function endSwipe(e){
     s.rc.style.transform='';s.row.classList.remove('open','right');
     if(t){
       if(t.checked){render(true);confirmUncheck([t],function(){setChecked(t,false);save();render(true);toast('Pointage retiré');});}
-      else{var wasEst=t.est;setChecked(t,true);save();render(true);toast(wasEst?'Pointée · montant confirmé':'Opération pointée');}
+      else{var wasEst=t.est;pointTx(t,function(){save();render(true);toast(wasEst?'Pointée · montant réel enregistré':'Opération pointée');});}
     }
   }else if(s.pos<-ACT/2){
     s.row.classList.add('open');s.row.classList.remove('right');
