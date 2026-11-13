@@ -1,7 +1,7 @@
 /* Zavio : fonctionnement hors-ligne.
    Stratégie : on va chercher la dernière version sur le réseau (la mise à jour s'affiche dès l'ouverture).
    Si le réseau est absent ou lent (plus de 3 secondes), on sert la copie gardée en mémoire. */
-const CACHE = 'zavio-v13';
+const CACHE = 'zavio-v14';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

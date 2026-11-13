@@ -1123,7 +1123,7 @@ function renderRules(){
     var av=inbound?-r.amount:r.amount;
     var nm=function(id){var o=accById(id);return o?o.name:'?';};
     var ttl=r.toAccId?(inbound?'Virement de '+nm(r.accId):'Virement vers '+nm(r.toAccId)):r.title;
-    h+='<div class="row" data-rule="'+r.id+'">'+(r.toAccId?trIcon():iconHtml(r.catId))+'<div class="mid"><div class="t">'+esc(ttl)+'</div><div class="s">'+esc(freqLabel(r))+' · depuis le '+esc(shortDate(r.start))+(r.count?' · '+(ruleRemaining(r)>0?ruleRemaining(r)+' restante'+(ruleRemaining(r)>1?'s':'')+' sur '+r.count:'terminée ('+r.count+')'):'')+(r.end?' · jusqu\'au '+esc(shortDate(r.end)):'')+'</div></div><div class="right"><div class="amt '+(av>0?'pos':'')+'">'+(r.est?'~ ':'')+fmt(av)+'</div></div></div>';
+    h+='<div class="row" data-rule="'+r.id+'">'+(r.toAccId?trIcon():iconHtml(r.catId))+'<div class="mid"><div class="t">'+esc(ttl)+'</div><div class="s">'+esc(freqLabel(r))+(r.count?' · '+(ruleRemaining(r)>0?ruleRemaining(r)+' restante'+(ruleRemaining(r)>1?'s':'')+' sur '+r.count:'terminée ('+r.count+')'):'')+(r.end?' · jusqu\'au '+esc(shortDate(r.end)):'')+'</div></div><div class="right"><div class="amt '+(av>0?'pos':'')+'">'+(r.est?'~ ':'')+fmt(av)+'</div></div></div>';
   });
   if(!rs.length)h='<div class="empty">Aucune opération récurrente.<br>Appuie sur + pour planifier un loyer, un abonnement, un salaire…</div>';
   else h='<div class="grp">'+h+'</div>';
