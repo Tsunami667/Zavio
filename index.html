@@ -12,7 +12,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
-
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap">
 <style>
 :root{
@@ -1612,16 +1611,16 @@ function loanSheet(l,presetAsset,modeArg,draft){
   if(simple){
     h+='<label>Montant restant dû ('+esc(cur())+')</label><input id="lBal" inputmode="decimal" value="'+(l&&l.simple?numIn(l.balance):'')+'" placeholder="0,00">';
     h+='<div class="note">Pratique si tu n\'as pas le taux, la durée ou le tableau d\'amortissement : seul le solde restant compte dans ton patrimoine. Sans mensualité, ce montant reste fixe : pense à le mettre à jour de temps en temps.'+(l&&l.simple&&l.balanceDate?' Dernière mise à jour : '+esc(parse(l.balanceDate).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}))+'.':'')+'</div>';
-    h+='<label>Mensualité (facultatif)</label><input id="lSMo" inputmode="decimal" value="'+(l&&l.simple&&+l.monthly>0?numIn(l.monthly):'')+'" placeholder="Ex. 850">';
     h+='<label>Taux annuel en % (facultatif)</label><input id="lSRate" inputmode="decimal" value="'+(l&&l.simple&&+l.rate>0?numIn(l.rate):'')+'" placeholder="Ex. 3,5">';
-    h+='<label>Cette mensualité est…</label><select id="lSB"><option value="0"'+(l&&l.simple&&l.monthlyInBudget?'':' selected')+'>pas encore dans mon budget</option><option value="1"'+(l&&l.simple&&l.monthlyInBudget?' selected':'')+'>déjà dans une opération récurrente</option></select>';
+    h+='<label>Cette mensualité est…</label><select id="lSB"><option value="0"'+(l&&l.simple&&l.monthlyInBudget?'':' selected')+'>pas encore dans mon budget (je la saisis)</option><option value="1"'+(l&&l.simple&&l.monthlyInBudget?' selected':'')+'>déjà dans une opération récurrente</option></select>';
+    h+='<div id="lSMoBox"><label>Mensualité (facultatif)</label><input id="lSMo" inputmode="decimal" value="'+(l&&l.simple&&+l.monthly>0?numIn(l.monthly):'')+'" placeholder="Ex. 850"></div>';
     h+='<div id="lSRBox" style="display:none"><label>Quelle opération récurrente ?</label><select id="lSR">'+ruleOptions(l&&l.simple&&l.monthlyRuleId)+'</select>'+(linkRules().length?'':'<div class="note">Aucune dépense récurrente trouvée. Crée-la d\'abord dans l\'onglet Récurrentes, ou choisis « pas encore dans mon budget ».</div>')+'</div>';
     h+='<div class="note">Avec la mensualité (et si possible le taux), le solde diminue tout seul chaque mois à partir d\'aujourd\'hui. « Pas encore dans mon budget » : la projection retire la mensualité de tes comptes. « Déjà dans une opération récurrente » : tu choisis ta récurrente, qui retire déjà l\'argent du compte, et rien n\'est compté deux fois. Sans taux, tout le montant sert à rembourser le capital.</div>';
     h+='<button class="btn" id="lSave">Enregistrer</button>';
     if(!isNew)h+='<button class="btn del" id="lDel">Supprimer</button>';
     h+='<button class="btn sec" id="lCancel">Annuler</button>';
     openSheet(h);
-    var syncLoan=function(){$('lSRBox').style.display=$('lSB').value==='1'?'block':'none';};
+    var syncLoan=function(){var on=$('lSB').value==='1';$('lSRBox').style.display=on?'block':'none';$('lSMoBox').style.display=on?'none':'block';};
     $('lSB').onchange=syncLoan;syncLoan();
     wireMode();
     $('lCancel').onclick=closeSheet;
@@ -1634,7 +1633,7 @@ function loanSheet(l,presetAsset,modeArg,draft){
       if(mo1===null||mo1<0){toast('Mensualité invalide');return;}
       if(rt1===null||rt1<0){toast('Taux invalide');return;}
       var on1=$('lSB').value==='1',mr1='';
-      if(on1){mr1=$('lSR').value;if(!mr1){toast('Choisis l\'opération récurrente');return;}var rr1=byId(db.rules,mr1);if(mo1===0&&rr1)mo1=Math.abs(rr1.amount);}
+      if(on1){mr1=$('lSR').value;if(!mr1){toast('Choisis l\'opération récurrente');return;}var rr1=byId(db.rules,mr1);if(rr1)mo1=Math.abs(rr1.amount);}
       var t1=todayStr();
       var o={name:n1,assetId:$('lAsset').value,simple:true,balance:r2(b),balanceDate:t1,principal:r2(b),rate:rt1,months:0,first:t1,monthly:r2(mo1),monthlyInBudget:on1,monthlyRuleId:mr1};
       if(isNew){o.id=uid();o.ruleId='';db.loans.push(o);}
