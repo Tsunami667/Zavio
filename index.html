@@ -1233,15 +1233,16 @@ function pctTxt(n){return n.toLocaleString('fr-FR',{maximumFractionDigits:1});}
 function monthYear(s){return parse(s).toLocaleDateString('fr-FR',{month:'short',year:'numeric'});}
 function loanCalc(P,rate,n){var r=rate/1200;return r2(r?P*r/(1-Math.pow(1+r,-n)):P/n);}
 function loanPaid(l,date){var k=0;while(k<l.months&&addMonths(l.first,k)<=date)k++;return k;}
+function simLoan(l,date){
+  var B=+l.balance||0,m=+l.monthly||0,paid=0;
+  if(!(m>0))return {bal:B,paid:0};
+  var r=(+l.rate||0)/1200,from=l.balanceDate||date,k=0;
+  while(k<1200&&addMonths(from,k+1)<=date)k++;
+  for(var i=0;i<k&&B>0;i++){B=B*(1+r);var p=Math.min(m,B);B-=p;paid+=p;}
+  return {bal:B,paid:paid};
+}
 function loanRemaining(l,date){
-  if(l.simple){
-    var B0=+l.balance||0,m0=+l.monthly||0;
-    if(!(m0>0))return Math.max(0,r2(B0));
-    var r0=(+l.rate||0)/1200,from=l.balanceDate||date,k0=0;
-    while(k0<1200&&addMonths(from,k0+1)<=date)k0++;
-    for(var i0=0;i0<k0&&B0>0;i0++)B0=B0*(1+r0)-m0;
-    return Math.max(0,r2(B0));
-  }
+  if(l.simple)return Math.max(0,r2(simLoan(l,date).bal));
   var k=loanPaid(l,date);if(k>=l.months)return 0;
   var r=l.rate/1200,B=l.principal;
   for(var i=0;i<k;i++)B-=(l.monthly-B*r);
@@ -1367,28 +1368,53 @@ function futureRuleSum(a,D){
   });
   return sum;
 }
+function linkRules(){return db.rules.filter(function(r){return r.amount<0&&!r.toAccId;}).sort(function(x,y){return (x.title||'').localeCompare(y.title||'');});}
+function ruleOptions(selId){
+  var L=linkRules(),h='<option value="">— choisir l\'opération —</option>';
+  L.forEach(function(r){h+='<option value="'+r.id+'"'+(r.id===selId?' selected':'')+'>'+esc(r.title||'Sans titre')+' · '+esc(money(Math.abs(r.amount)))+' · '+esc(freqLabel(r).toLowerCase())+'</option>';});
+  return h;
+}
+function ruleDeps(r,t,n){
+  var deps=[],i;for(i=0;i<n;i++)deps.push(0);
+  var D=addMonths(t,n),lim=r.count?firstValidIndex(r)+r.count:Infinity,idx=0,g=0;
+  while(g++<6000){
+    if(idx>=lim)break;
+    if(occBase(r,idx)<r.start){idx++;continue;}
+    var d=occ(r,idx);
+    if(r.end&&d>r.end)break;
+    if(d>D)break;
+    if(d>t){var k=0;while(k<n-1&&d>addMonths(t,k+1))k++;deps[k]+=Math.abs(r.amount);}
+    idx++;
+  }
+  return deps;
+}
 function assetFuture(a,yrs){
   var v=+a.value||0,g=(+a.growth||0)/100,c=+a.contrib||0,dep=0;
   var rm=Math.pow(1+g,1/12)-1,n=Math.max(0,Math.round(yrs*12));
+  var r=a.contribRuleId?byId(db.rules,a.contribRuleId):null,deps=r?ruleDeps(r,todayStr(),n):null;
   for(var i=0;i<n;i++){
     v*=1+rm;
-    if(c>0&&(a.contribFreq==='y'?((i+1)%12===0):true)){v+=c;dep+=c;}
+    if(deps)v+=deps[i];
+    else if(c>0&&(a.contribFreq==='y'?((i+1)%12===0):true)){v+=c;dep+=c;}
   }
-  return {val:v,dep:dep};
+  return {val:v,dep:dep,linked:!!r};
 }
 function assetPh(k){
   var P={immo:'Ex. Résidence principale, studio locatif, garage',auto:'Ex. Voiture, moto, scooter',montre:'Ex. Montre, bague, collier',livret:'Ex. Livret A, LDDS, PEL',bourse:'Ex. PEA, compte-titres, ETF World',av:'Ex. Assurance-vie, contrat multisupport',crypto:'Ex. Bitcoin, Ethereum',metaux:'Ex. Pièces d\'or, lingot',placement:'Ex. SCPI, parts de société',autre:'Ex. Œuvre d\'art, collection, mobilier'};
   return P[k]||'Nom du bien';
 }
 function noContrib(k){return k==='immo'||k==='auto'||k==='montre';}
-function contribTxt(a){return +a.contrib>0?'+'+money(a.contrib)+(a.contribFreq==='y'?' / an':' / mois'):'';}
+function contribTxt(a){
+  if(a.contribRuleId){var r=byId(db.rules,a.contribRuleId);return r?'+'+money(Math.abs(r.amount))+' · '+freqLabel(r).toLowerCase()+' (récurrente)':'⚠️ récurrente supprimée';}
+  return +a.contrib>0?'+'+money(a.contrib)+(a.contribFreq==='y'?' / an':' / mois'):'';}
 function projectNet(D){
   var t=todayStr(),yrs=(parse(D)-parse(t))/864e5/365.25,acc=0,as=0,debt=0,extra=0;
   db.accounts.forEach(function(a){acc+=accBalance(a,D)+futureRuleSum(a,D);});
-  db.assets.forEach(function(a){var f=assetFuture(a,yrs);as+=f.val;if(!a.contribBudget)extra+=f.dep;});
+  db.assets.forEach(function(a){var f=assetFuture(a,yrs);as+=f.val;if(!a.contribBudget&&!f.linked)extra+=f.dep;});
   db.loans.forEach(function(l){
     debt+=loanRemaining(l,D);
-    if(!(l.ruleId&&byId(db.rules,l.ruleId)))extra+=(loanPaid(l,D)-loanPaid(l,t))*l.monthly;
+    if(l.simple){var inB=l.monthlyInBudget&&(!l.monthlyRuleId||byId(db.rules,l.monthlyRuleId));if(!inB&&+l.monthly>0)extra+=simLoan(l,D).paid-simLoan(l,t).paid;}
+    else if(!(l.ruleId&&byId(db.rules,l.ruleId)))extra+=(loanPaid(l,D)-loanPaid(l,t))*l.monthly;
   });
   return r2(acc+as-debt-extra);
 }
@@ -1466,7 +1492,7 @@ function renderPat(){
         var g=r2(a.value-a.buy);
         parts.push((g>0?'+':'')+money(g)+' ('+(g>0?'+':'')+pctTxt(g/a.buy*100)+' %) depuis l\'achat');
       }else parts.push(k[2]);
-      if(+a.contrib>0)parts.push(contribTxt(a));
+      if(a.contribRuleId||+a.contrib>0)parts.push(contribTxt(a));
       h+='<div class="row" data-asset="'+a.id+'"><div class="ico" style="background:#8e8e992e">'+k[1]+'</div><div class="mid"><div class="t">'+esc(a.name)+'</div><div class="s">'+esc(parts.join(' · '))+'</div></div><div class="right"><div class="amt">'+esc(money(a.value))+'</div></div></div>';
       ls.forEach(function(l){h+=loanRow(l,true);});
     });
@@ -1497,9 +1523,10 @@ function assetSheet(a){
   h+='<label>Valeur actuelle ('+esc(cur())+')</label><input id="pVal" inputmode="decimal" value="'+numIn(a&&a.value)+'" placeholder="0,00">';
   h+='<label>Évolution annuelle estimée (%, facultatif)</label><input id="pGrow" inputmode="decimal" value="'+numIn(a&&a.growth)+'" placeholder="0">';
   h+='<div class="note">Sert uniquement à la projection. Pour un livret, mets son taux (ex. 2). Vide = 0 %. Mets un nombre négatif pour une perte de valeur (ex. -8 pour une voiture).</div>';
-  h+='<div id="pConBox" style="display:'+(noContrib(a?a.kind:'immo')?'none':'block')+'"><label>Versements prévus (facultatif)</label><div class="two"><input id="pCon" inputmode="decimal" value="'+numIn(a&&a.contrib)+'" placeholder="Ex. 100"><select id="pConF"><option value="m"'+(a&&a.contribFreq==='y'?'':' selected')+'>par mois</option><option value="y"'+(a&&a.contribFreq==='y'?' selected':'')+'>par an</option></select></div>';
-  h+='<label>Ce versement est…</label><select id="pConB"><option value="0"'+(a&&a.contribBudget?'':' selected')+'>pas encore dans mon budget</option><option value="1"'+(a&&a.contribBudget?' selected':'')+'>déjà dans mes opérations récurrentes</option></select>';
-  h+='<div class="note">Somme que tu comptes ajouter à ce bien. Choisis « déjà dans mes opérations récurrentes » si tu as déjà planifié ce versement dans l\'onglet Récurrentes (par exemple un virement de 100 € chaque mois vers ton livret). Sinon laisse « pas encore » : l\'appli retire alors cet argent de ton compte dans la projection, pour ne pas le compter deux fois.</div></div>';
+  h+='<div id="pConBox" style="display:'+(noContrib(a?a.kind:'immo')?'none':'block')+'"><div id="pConAmt"><label>Versements prévus (facultatif)</label><div class="two"><input id="pCon" inputmode="decimal" value="'+numIn(a&&a.contrib)+'" placeholder="Ex. 100"><select id="pConF"><option value="m"'+(a&&a.contribFreq==='y'?'':' selected')+'>par mois</option><option value="y"'+(a&&a.contribFreq==='y'?' selected':'')+'>par an</option></select></div></div>';
+  h+='<label>Ce versement est…</label><select id="pConB"><option value="0"'+(a&&a.contribBudget?'':' selected')+'>pas encore dans mon budget</option><option value="1"'+(a&&a.contribBudget?' selected':'')+'>déjà dans une opération récurrente</option></select>';
+  h+='<div id="pConRBox" style="display:none"><label>Quelle opération récurrente ?</label><select id="pConR">'+ruleOptions(a&&a.contribRuleId)+'</select>'+(linkRules().length?'':'<div class="note">Aucune dépense récurrente trouvée. Crée-la d\'abord dans l\'onglet Récurrentes, ou choisis « pas encore dans mon budget ».</div>')+'</div>';
+  h+='<div class="note">« Pas encore dans mon budget » : tu indiques la somme ici, et la projection la retire de tes comptes (sinon ton patrimoine paraîtrait gonflé). « Déjà dans une opération récurrente » : tu choisis ta récurrente, et l\'appli lit directement son montant, ses dates et sa fin, sans rien retirer de plus. Plus de double comptage possible.</div></div>';
   h+='<label>Prix d\'achat (facultatif)</label><input id="pBuy" inputmode="decimal" value="'+numIn(a&&a.buy)+'" placeholder="0,00">';
   h+='<label>Date d\'achat (facultatif)</label><input type="date" id="pBuyD" value="'+esc(a&&a.buyDate||'')+'">';
   if(!isNew){
@@ -1518,6 +1545,8 @@ function assetSheet(a){
   h+='<button class="btn sec" id="pCancel">Annuler</button>';
   openSheet(h);
   $('pCancel').onclick=closeSheet;
+  function syncCon(){var on=$('pConB').value==='1';$('pConRBox').style.display=on?'block':'none';$('pConAmt').style.display=on?'none':'block';}
+  $('pConB').onchange=syncCon;syncCon();
   $('pKind').onchange=function(){$('pNewK').style.display=this.value==='__new'?'block':'none';$('pConBox').style.display=noContrib(this.value)?'none':'block';$('pName').placeholder=assetPh(this.value);};
   if($('pLoan'))$('pLoan').onclick=function(){loanSheet(null,a.id);};
   $('pSave').onclick=function(){
@@ -1532,11 +1561,12 @@ function assetSheet(a){
       var kk={id:'k'+uid(),icon:$('pKIc').value.trim()||'🏷️',name:kn};
       db.customKinds.push(kk);kd=kk.id;
     }
-    var cf=$('pConF').value,cb=$('pConB').value==='1';
+    var cf=$('pConF').value,cb=$('pConB').value==='1'&&!noContrib(kd),cr='';
+    if(cb){cr=$('pConR').value;if(!cr){toast('Choisis l\'opération récurrente');return;}co=0;}
     var t=todayStr();
-    if(isNew){a={id:uid(),name:n,kind:kd,value:v,growth:gr,contrib:co,contribFreq:cf,contribBudget:cb,buy:by,buyDate:$('pBuyD').value||'',hist:[{d:t,v:v}]};db.assets.push(a);}
+    if(isNew){a={id:uid(),name:n,kind:kd,value:v,growth:gr,contrib:co,contribFreq:cf,contribBudget:cb,contribRuleId:cr,buy:by,buyDate:$('pBuyD').value||'',hist:[{d:t,v:v}]};db.assets.push(a);}
     else{
-      a.name=n;a.kind=kd;a.growth=gr;a.contrib=co;a.contribFreq=cf;a.contribBudget=cb;a.buy=by;a.buyDate=$('pBuyD').value||'';
+      a.name=n;a.kind=kd;a.growth=gr;a.contrib=co;a.contribFreq=cf;a.contribBudget=cb;a.contribRuleId=cr;a.buy=by;a.buyDate=$('pBuyD').value||'';
       if(v!==a.value||!(a.hist&&a.hist.length)){
         a.hist=(a.hist||[]).filter(function(e){return e.d!==t;});a.hist.push({d:t,v:v});
         a.hist.sort(function(x,y){return x.d<y.d?-1:1;});
@@ -1583,11 +1613,15 @@ function loanSheet(l,presetAsset,modeArg,draft){
     h+='<div class="note">Pratique si tu n\'as pas le taux, la durée ou le tableau d\'amortissement : seul le solde restant compte dans ton patrimoine. Sans mensualité, ce montant reste fixe : pense à le mettre à jour de temps en temps.'+(l&&l.simple&&l.balanceDate?' Dernière mise à jour : '+esc(parse(l.balanceDate).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}))+'.':'')+'</div>';
     h+='<label>Mensualité (facultatif)</label><input id="lSMo" inputmode="decimal" value="'+(l&&l.simple&&+l.monthly>0?numIn(l.monthly):'')+'" placeholder="Ex. 850">';
     h+='<label>Taux annuel en % (facultatif)</label><input id="lSRate" inputmode="decimal" value="'+(l&&l.simple&&+l.rate>0?numIn(l.rate):'')+'" placeholder="Ex. 3,5">';
-    h+='<div class="note">Si tu renseignes la mensualité (et si possible le taux), le solde diminue tout seul chaque mois à partir d\'aujourd\'hui, et la projection en tient compte. Cette mensualité doit déjà être dans tes opérations récurrentes : elle n\'est pas ajoutée au budget. Sans taux, tout le montant sert à rembourser le capital.</div>';
+    h+='<label>Cette mensualité est…</label><select id="lSB"><option value="0"'+(l&&l.simple&&l.monthlyInBudget?'':' selected')+'>pas encore dans mon budget</option><option value="1"'+(l&&l.simple&&l.monthlyInBudget?' selected':'')+'>déjà dans une opération récurrente</option></select>';
+    h+='<div id="lSRBox" style="display:none"><label>Quelle opération récurrente ?</label><select id="lSR">'+ruleOptions(l&&l.simple&&l.monthlyRuleId)+'</select>'+(linkRules().length?'':'<div class="note">Aucune dépense récurrente trouvée. Crée-la d\'abord dans l\'onglet Récurrentes, ou choisis « pas encore dans mon budget ».</div>')+'</div>';
+    h+='<div class="note">Avec la mensualité (et si possible le taux), le solde diminue tout seul chaque mois à partir d\'aujourd\'hui. « Pas encore dans mon budget » : la projection retire la mensualité de tes comptes. « Déjà dans une opération récurrente » : tu choisis ta récurrente, qui retire déjà l\'argent du compte, et rien n\'est compté deux fois. Sans taux, tout le montant sert à rembourser le capital.</div>';
     h+='<button class="btn" id="lSave">Enregistrer</button>';
     if(!isNew)h+='<button class="btn del" id="lDel">Supprimer</button>';
     h+='<button class="btn sec" id="lCancel">Annuler</button>';
     openSheet(h);
+    var syncLoan=function(){$('lSRBox').style.display=$('lSB').value==='1'?'block':'none';};
+    $('lSB').onchange=syncLoan;syncLoan();
     wireMode();
     $('lCancel').onclick=closeSheet;
     $('lSave').onclick=function(){
@@ -1598,8 +1632,10 @@ function loanSheet(l,presetAsset,modeArg,draft){
       var rt1=$('lSRate').value.trim()===''?0:parseAmount($('lSRate').value);
       if(mo1===null||mo1<0){toast('Mensualité invalide');return;}
       if(rt1===null||rt1<0){toast('Taux invalide');return;}
+      var on1=$('lSB').value==='1',mr1='';
+      if(on1){mr1=$('lSR').value;if(!mr1){toast('Choisis l\'opération récurrente');return;}var rr1=byId(db.rules,mr1);if(mo1===0&&rr1)mo1=Math.abs(rr1.amount);}
       var t1=todayStr();
-      var o={name:n1,assetId:$('lAsset').value,simple:true,balance:r2(b),balanceDate:t1,principal:r2(b),rate:rt1,months:0,first:t1,monthly:r2(mo1)};
+      var o={name:n1,assetId:$('lAsset').value,simple:true,balance:r2(b),balanceDate:t1,principal:r2(b),rate:rt1,months:0,first:t1,monthly:r2(mo1),monthlyInBudget:on1,monthlyRuleId:mr1};
       if(isNew){o.id=uid();o.ruleId='';db.loans.push(o);}
       else for(var k1 in o)l[k1]=o[k1];
       save();closeSheet();render();
