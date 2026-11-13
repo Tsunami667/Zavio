@@ -1403,6 +1403,7 @@ function assetPh(k){
   var P={immo:'Ex. Résidence principale, studio locatif, garage',auto:'Ex. Voiture, moto, scooter',montre:'Ex. Montre, bague, collier',livret:'Ex. Livret A, LDDS, PEL',bourse:'Ex. PEA, compte-titres, ETF World',av:'Ex. Assurance-vie, contrat multisupport',crypto:'Ex. Bitcoin, Ethereum',metaux:'Ex. Pièces d\'or, lingot',placement:'Ex. SCPI, parts de société',autre:'Ex. Œuvre d\'art, collection, mobilier'};
   return P[k]||'Nom du bien';
 }
+function noBuy(k){return k==='livret'||k==='av';}
 function noContrib(k){return k==='immo'||k==='auto'||k==='montre';}
 function contribTxt(a){
   if(a.contribRuleId){var r=byId(db.rules,a.contribRuleId);return r?'+'+money(Math.abs(r.amount))+' · '+freqLabel(r).toLowerCase()+' (récurrente)':'⚠️ récurrente supprimée';}
@@ -1527,8 +1528,8 @@ function assetSheet(a){
   h+='<label>Ce versement est…</label><select id="pConB"><option value="0"'+(a&&a.contribBudget?'':' selected')+'>pas encore dans mon budget</option><option value="1"'+(a&&a.contribBudget?' selected':'')+'>déjà dans une opération récurrente</option></select>';
   h+='<div id="pConRBox" style="display:none"><label>Quelle opération récurrente ?</label><select id="pConR">'+ruleOptions(a&&a.contribRuleId)+'</select>'+(linkRules().length?'':'<div class="note">Aucune dépense récurrente trouvée. Crée-la d\'abord dans l\'onglet Récurrentes, ou choisis « pas encore dans mon budget ».</div>')+'</div>';
   h+='<div class="note">« Pas encore dans mon budget » : tu indiques la somme ici, et la projection la retire de tes comptes (sinon ton patrimoine paraîtrait gonflé). « Déjà dans une opération récurrente » : tu choisis ta récurrente, et l\'appli lit directement son montant, ses dates et sa fin, sans rien retirer de plus. Plus de double comptage possible.</div></div>';
-  h+='<label>Prix d\'achat (facultatif)</label><input id="pBuy" inputmode="decimal" value="'+numIn(a&&a.buy)+'" placeholder="0,00">';
-  h+='<label>Date d\'achat (facultatif)</label><input type="date" id="pBuyD" value="'+esc(a&&a.buyDate||'')+'">';
+  h+='<div id="pBuyBox" style="display:'+(noBuy(a?a.kind:'immo')?'none':'block')+'"><label>Prix d\'achat (facultatif)</label><input id="pBuy" inputmode="decimal" value="'+numIn(a&&a.buy)+'" placeholder="0,00">';
+  h+='<label>Date d\'achat (facultatif)</label><input type="date" id="pBuyD" value="'+esc(a&&a.buyDate||'')+'"></div>';
   if(!isNew){
     var hs=(a.hist||[]).slice().sort(function(x,y){return x.d<y.d?1:-1;}).slice(0,8);
     if(hs.length>1){
@@ -1547,7 +1548,7 @@ function assetSheet(a){
   $('pCancel').onclick=closeSheet;
   function syncCon(){var on=$('pConB').value==='1';$('pConRBox').style.display=on?'block':'none';$('pConAmt').style.display=on?'none':'block';}
   $('pConB').onchange=syncCon;syncCon();
-  $('pKind').onchange=function(){$('pNewK').style.display=this.value==='__new'?'block':'none';$('pConBox').style.display=noContrib(this.value)?'none':'block';$('pName').placeholder=assetPh(this.value);};
+  $('pKind').onchange=function(){$('pNewK').style.display=this.value==='__new'?'block':'none';$('pConBox').style.display=noContrib(this.value)?'none':'block';$('pBuyBox').style.display=noBuy(this.value)?'none':'block';$('pName').placeholder=assetPh(this.value);};
   if($('pLoan'))$('pLoan').onclick=function(){loanSheet(null,a.id);};
   $('pSave').onclick=function(){
     var n=$('pName').value.trim();if(!n){toast('Donne un nom au bien');return;}
@@ -1564,9 +1565,9 @@ function assetSheet(a){
     var cf=$('pConF').value,cb=$('pConB').value==='1'&&!noContrib(kd),cr='';
     if(cb){cr=$('pConR').value;if(!cr){toast('Choisis l\'opération récurrente');return;}co=0;}
     var t=todayStr();
-    if(isNew){a={id:uid(),name:n,kind:kd,value:v,growth:gr,contrib:co,contribFreq:cf,contribBudget:cb,contribRuleId:cr,buy:by,buyDate:$('pBuyD').value||'',hist:[{d:t,v:v}]};db.assets.push(a);}
+    if(isNew){a={id:uid(),name:n,kind:kd,value:v,growth:gr,contrib:co,contribFreq:cf,contribBudget:cb,contribRuleId:cr,buy:noBuy(kd)?0:by,buyDate:noBuy(kd)?'':($('pBuyD').value||''),hist:[{d:t,v:v}]};db.assets.push(a);}
     else{
-      a.name=n;a.kind=kd;a.growth=gr;a.contrib=co;a.contribFreq=cf;a.contribBudget=cb;a.contribRuleId=cr;a.buy=by;a.buyDate=$('pBuyD').value||'';
+      a.name=n;a.kind=kd;a.growth=gr;a.contrib=co;a.contribFreq=cf;a.contribBudget=cb;a.contribRuleId=cr;a.buy=noBuy(kd)?0:by;a.buyDate=noBuy(kd)?'':($('pBuyD').value||'');
       if(v!==a.value||!(a.hist&&a.hist.length)){
         a.hist=(a.hist||[]).filter(function(e){return e.d!==t;});a.hist.push({d:t,v:v});
         a.hist.sort(function(x,y){return x.d<y.d?-1:1;});
