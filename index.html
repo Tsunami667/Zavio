@@ -260,7 +260,7 @@ html,body{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y pinch-
 (function(){
 'use strict';
 var KEY='budget_plus_v1',OLDKEY='budget_simple_v1';
-var COLORS=['#c0607a','#e08a3c','#4a7fc1','#7fc241','#8a4f7d','#c0504d','#2a9d8f','#e9c46a','#6c757d','#5e60ce','#d4a373','#3d405b'];
+var CAT_COLORS=['#c0607a','#e08a3c','#4a7fc1','#7fc241','#8a4f7d','#c0504d','#2a9d8f','#e9c46a','#6c757d','#5e60ce','#d4a373','#3d405b'];
 var db=null;
 var view={tab:'ops',q:'',cat:''};
 var sel=null,lastShown=[];
@@ -960,7 +960,7 @@ function catSheet(c,presetParent){
   var hasKids=!!(c&&db.cats.some(function(x){return x.parentId===c.id;}));
   var pid=c?(c.parentId||''):(presetParent||'');
   var par=catById(pid);
-  var color=c?c.color:(par?par.color:COLORS[0]);
+  var color=c?c.color:(par?par.color:CAT_COLORS[0]);
   var ctype=c?(c.type||'exp'):(par?par.type:'exp');
   var h='<h2>'+(isNew?(par?'Nouvelle sous-catégorie':'Nouvelle catégorie'):(c.parentId?'Modifier la sous-catégorie':'Modifier la catégorie'))+'</h2>';
   h+='<label style="margin-top:0">Nom</label><input id="cName" value="'+esc(c?c.name:'')+'" placeholder="'+(par?'Ex. Netflix, Électricité…':'Ex. Abonnements')+'">';
@@ -973,7 +973,7 @@ function catSheet(c,presetParent){
   h+='<div id="cOwn" style="display:'+(par?'none':'block')+'">';
   h+='<label>Type</label><div class="seg" id="cSeg"><button data-t="exp" class="exp '+(ctype==='exp'?'on':'')+'">Dépense</button><button data-t="inc" class="inc '+(ctype==='inc'?'on':'')+'">Revenu</button></div>';
   h+='<div class="note" style="margin-top:6px">Les nouvelles opérations de cette catégorie seront automatiquement des dépenses ou des revenus. Les opérations déjà saisies ne changent pas.</div>';
-  h+='<label>Couleur</label><div class="sw" id="sw">'+COLORS.map(function(x){return '<i data-c="'+x+'" style="background:'+x+'" class="'+(x===color?'on':'')+'"></i>';}).join('')+'</div>';
+  h+='<label>Couleur</label><div class="sw" id="sw">'+CAT_COLORS.map(function(x){return '<i data-c="'+x+'" style="background:'+x+'" class="'+(x===color?'on':'')+'"></i>';}).join('')+'</div>';
   h+='</div>';
   h+='<button class="btn" id="cSave">Enregistrer</button>';
   if(!isNew&&!c.parentId)h+='<button class="btn sec" id="cAddSub">+ Ajouter une sous-catégorie</button>';
