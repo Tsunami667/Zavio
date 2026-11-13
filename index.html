@@ -1930,7 +1930,7 @@ render();
 })();
 </script>
 <script>
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(r){try{r.update();}catch(e){}}).catch(function(){});});}
 if(navigator.storage&&navigator.storage.persist){try{navigator.storage.persist();}catch(e){}}
 </script>
 </body>

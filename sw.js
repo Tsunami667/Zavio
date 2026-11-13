@@ -1,11 +1,15 @@
 /* Zavio : fonctionnement hors-ligne.
-   Stratégie : on sert la copie en cache tout de suite, et on la met à jour en arrière-plan.
-   Une mise à jour du site devient donc visible à la 2e ouverture de l'appli. */
-const CACHE = 'zavio-v12';
+   Stratégie : on va chercher la dernière version sur le réseau (la mise à jour s'affiche dès l'ouverture).
+   Si le réseau est absent ou lent (plus de 3 secondes), on sert la copie gardée en mémoire. */
+const CACHE = 'zavio-v13';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => Promise.all(SHELL.map((u) => c.add(u).catch(() => {}))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -19,16 +23,17 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  if (new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(req, { ignoreSearch: true });
-      const network = fetch(req)
-        .then((res) => {
-          if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
+      const network = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then((res) => {
+        if (res && res.ok) cache.put(req, res.clone());
+        return res;
+      });
+      if (!cached) return network;
+      const slow = new Promise((resolve) => setTimeout(() => resolve(cached), 3000));
+      return Promise.race([network.catch(() => cached), slow]);
     })
   );
 });
