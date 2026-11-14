@@ -1420,11 +1420,16 @@ function ruleDeps(r,t,n){
   return deps;
 }
 function assetFuture(a,yrs){
-  var v=+a.value||0,g=(+a.growth||0)/100,c=+a.contrib||0,dep=0;
+  var v=+a.value||0,gv=+a.growth||0,gm=a.growthMode==='e',g=gm?0:gv/100,c=+a.contrib||0,dep=0;
+  var sv=(a.stopVal===''||a.stopVal==null||isNaN(+a.stopVal))?null:+a.stopVal,sd=a.stopDate||'',t0=todayStr();
   var rm=Math.pow(1+g,1/12)-1,n=Math.max(0,Math.round(yrs*12));
   var r=a.contribRuleId?byId(db.rules,a.contribRuleId):null,deps=r?ruleDeps(r,todayStr(),n):null;
   for(var i=0;i<n;i++){
-    v*=1+rm;
+    if(!sd||addMonths(t0,i+1)<=sd){
+      var nv=gm?(((i+1)%12===0)?v+gv:v):v*(1+rm);
+      if(sv!==null){if(gv<0)nv=Math.max(nv,Math.min(v,sv));else if(gv>0)nv=Math.min(nv,Math.max(v,sv));}
+      v=nv;
+    }
     if(deps)v+=deps[i];
     else if(c>0&&(a.contribFreq==='y'?((i+1)%12===0):true)){v+=c;dep+=c;}
   }
@@ -1553,8 +1558,10 @@ function assetSheet(a){
   h+='<label>Type</label><select id="pKind">'+allKinds().map(function(k){return '<option value="'+k[0]+'"'+((a?a.kind:'immo')===k[0]?' selected':'')+'>'+k[1]+' '+esc(k[2])+'</option>';}).join('')+'<option value="__new">➕ Nouveau type…</option></select>';
   h+='<div id="pNewK" style="display:none"><div class="two"><div style="flex:0 0 90px"><label>Icône</label><input id="pKIc" value="🏷️" maxlength="4"></div><div><label>Nom du type</label><input id="pKNm" placeholder="Ex. Vin, Art, Parts de SCPI"></div></div></div>';
   h+='<label>Valeur actuelle ('+esc(cur())+')</label><input id="pVal" inputmode="decimal" value="'+numIn(a&&a.value)+'" placeholder="0,00">';
-  h+='<label>Évolution annuelle estimée (%, facultatif)</label><input id="pGrow" inputmode="decimal" value="'+numIn(a&&a.growth)+'" placeholder="0">';
-  h+='<div class="note">Sert uniquement à la projection. Pour un livret, mets son taux (ex. 2). Vide = 0 %. Mets un nombre négatif pour une perte de valeur (ex. -8 pour une voiture).</div>';
+  var gmE=!!(a&&a.growthMode==='e');
+  h+='<label>Évolution annuelle estimée (facultatif)</label><div class="seg mini" id="gSeg" style="width:88px;margin:0 0 6px"><button type="button" data-gm="p" class="exp '+(gmE?'':'on')+'">%</button><button type="button" data-gm="e" class="exp '+(gmE?'on':'')+'">'+esc(cur())+'</button></div><input id="pGrow" inputmode="decimal" value="'+numIn(a&&a.growth)+'" placeholder="0">';
+  h+='<div class="two"><div><label>S\'arrête quand il vaut (facultatif)</label><input id="pStopV" inputmode="decimal" value="'+(a&&a.stopVal!=null&&a.stopVal!==''?numIn(a.stopVal):'')+'" placeholder="Ex. 5000"></div><div><label>Ou à la date</label><input type="date" id="pStopD" value="'+esc(a&&a.stopDate||'')+'"></div></div>';
+  h+='<div class="note">Sert uniquement à la projection. « % » : pourcentage par an (ex. 2 pour un livret). « '+esc(cur())+' » : montant fixe retiré ou ajouté une fois par an (ex. −500). Le bouton −/+ donne une perte de valeur. Le seuil ou la date arrête l\'évolution (la voiture arrête de perdre à 5 000 €).</div>';
   h+='<div id="pConBox" style="display:'+(noContrib(a?a.kind:'immo')?'none':'block')+'"><div id="pConAmt"><label>Versements prévus (facultatif)</label><div class="two"><input id="pCon" inputmode="decimal" value="'+numIn(a&&a.contrib)+'" placeholder="Ex. 100"><select id="pConF"><option value="m"'+(a&&a.contribFreq==='y'?'':' selected')+'>par mois</option><option value="y"'+(a&&a.contribFreq==='y'?' selected':'')+'>par an</option></select></div></div>';
   h+='<label>Ce versement est…</label><select id="pConB"><option value="0"'+(a&&a.contribBudget?'':' selected')+'>pas encore dans mon budget</option><option value="1"'+(a&&a.contribBudget?' selected':'')+'>déjà dans une opération récurrente</option></select>';
   h+='<div id="pConRBox" style="display:none"><label>Quelle opération récurrente ?</label><select id="pConR">'+ruleOptions(a&&a.contribRuleId)+'</select>'+(linkRules().length?'':'<div class="note">Aucune dépense récurrente trouvée. Crée-la d\'abord dans l\'onglet Récurrentes, ou choisis « pas encore dans mon budget ».</div>')+'</div>';
@@ -1579,6 +1586,7 @@ function assetSheet(a){
   $('pCancel').onclick=closeSheet;
   function syncCon(){var on=$('pConB').value==='1';$('pConRBox').style.display=on?'block':'none';$('pConAmt').style.display=on?'none':'block';}
   $('pConB').onchange=syncCon;syncCon();
+  $('gSeg').onclick=function(e){var b=e.target.closest('button');if(!b)return;Array.prototype.forEach.call($('gSeg').children,function(x){x.classList.toggle('on',x===b);});};
   $('pKind').onchange=function(){$('pNewK').style.display=this.value==='__new'?'block':'none';$('pConBox').style.display=noContrib(this.value)?'none':'block';$('pBuyBox').style.display=noBuy(this.value)?'none':'block';$('pName').placeholder=assetPh(this.value);};
   if($('pLoan'))$('pLoan').onclick=function(){loanSheet(null,a.id);};
   $('pSave').onclick=function(){
@@ -1586,6 +1594,9 @@ function assetSheet(a){
     var v=parseAmount($('pVal').value);if(v===null){toast('Valeur invalide');return;}
     var by=$('pBuy').value.trim()===''?0:parseAmount($('pBuy').value);if(by===null){toast('Prix d\'achat invalide');return;}
     var gr=$('pGrow').value.trim()===''?0:parseAmount($('pGrow').value);if(gr===null){toast('Évolution annuelle invalide');return;}
+    var gmv=$('gSeg').querySelector('.on').getAttribute('data-gm');
+    var sv0=$('pStopV').value.trim()===''?null:parseAmount($('pStopV').value);if($('pStopV').value.trim()!==''&&sv0===null){toast('Seuil invalide');return;}
+    var sd0=$('pStopD').value||'';
     var co=($('pCon').value.trim()===''||noContrib($('pKind').value))?0:parseAmount($('pCon').value);if(co===null||co<0){toast('Versement invalide');return;}
     var kd=$('pKind').value;
     if(kd==='__new'){
@@ -1596,9 +1607,9 @@ function assetSheet(a){
     var cf=$('pConF').value,cb=$('pConB').value==='1'&&!noContrib(kd),cr='';
     if(cb){cr=$('pConR').value;if(!cr){toast('Choisis l\'opération récurrente');return;}co=0;}
     var t=todayStr();
-    if(isNew){a={id:uid(),name:n,kind:kd,value:v,growth:gr,contrib:co,contribFreq:cf,contribBudget:cb,contribRuleId:cr,buy:noBuy(kd)?0:by,buyDate:noBuy(kd)?'':($('pBuyD').value||''),hist:[{d:t,v:v}]};db.assets.push(a);}
+    if(isNew){a={id:uid(),name:n,kind:kd,value:v,growth:gr,growthMode:gmv,stopVal:sv0,stopDate:sd0,contrib:co,contribFreq:cf,contribBudget:cb,contribRuleId:cr,buy:noBuy(kd)?0:by,buyDate:noBuy(kd)?'':($('pBuyD').value||''),hist:[{d:t,v:v}]};db.assets.push(a);}
     else{
-      a.name=n;a.kind=kd;a.growth=gr;a.contrib=co;a.contribFreq=cf;a.contribBudget=cb;a.contribRuleId=cr;a.buy=noBuy(kd)?0:by;a.buyDate=noBuy(kd)?'':($('pBuyD').value||'');
+      a.name=n;a.kind=kd;a.growth=gr;a.growthMode=gmv;a.stopVal=sv0;a.stopDate=sd0;a.contrib=co;a.contribFreq=cf;a.contribBudget=cb;a.contribRuleId=cr;a.buy=noBuy(kd)?0:by;a.buyDate=noBuy(kd)?'':($('pBuyD').value||'');
       if(v!==a.value||!(a.hist&&a.hist.length)){
         a.hist=(a.hist||[]).filter(function(e){return e.d!==t;});a.hist.push({d:t,v:v});
         a.hist.sort(function(x,y){return x.d<y.d?-1:1;});
