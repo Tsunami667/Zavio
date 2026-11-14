@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.zaviomoney.ap",
+      "sha256_cert_fingerprints": [
+        "9D:52:CD:A5:56:66:29:24:7C:D9:29:82:0D:7F:4E:35:AC:C7:1A:90:A6:21:4E:3B:5C:89:CD:F4:E1:79:AD:3D"
+      ]
+    }
+  }
+]
