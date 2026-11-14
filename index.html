@@ -213,8 +213,11 @@ nav button.on{color:var(--accent);background:var(--accentSoft)}
 #sheet textarea{min-height:130px;font-size:12px;font-family:ui-monospace,Menlo,monospace}
 .seg{display:flex;background:var(--field);border-radius:16px;padding:4px;gap:4px}
 .seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:11px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
-.seg.mini{padding:2px;border-radius:11px;width:70%;margin:0 auto}
-.seg.mini button{padding:5px;font-size:12.5px;border-radius:9px;font-weight:600}
+.amtrow{display:flex;gap:8px;align-items:center}
+.amtrow #fAmt{flex:1;min-width:0;width:auto}
+.seg.mini{padding:2px;border-radius:12px;gap:2px}
+.seg.mini button{flex:none;width:38px;padding:9px 0;font-size:18px;line-height:1;border-radius:10px;font-weight:700}
+.seg.mini button.on.exp{background:var(--danger);color:#fff;box-shadow:none}
 .seg button.on.exp{background:var(--card);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.15)}
 .seg button.on.inc{background:var(--pos);color:#fff}
 .two{display:flex;gap:10px}.two>*{flex:1;min-width:0}
@@ -612,10 +615,9 @@ function formSheet(mode,item,tpl){
   if(isNew&&multi)h+='<div class="seg" id="kindSeg" style="margin-bottom:8px"><button data-k="op" class="exp '+(kindNow==='op'?'on':'')+'">Opération</button><button data-k="tr" class="exp '+(kindNow==='tr'?'on':'')+'">Virement</button></div>';
   h+='<div id="opBox" style="display:'+(kindNow==='op'?'block':'none')+'">';
   h+='<label style="margin-top:0">Catégorie</label><input type="hidden" id="fCat" value="'+esc(catId||'')+'"><button type="button" class="fieldbtn" id="fCatBtn"></button>';
-  h+='<div id="segWrap" style="margin-top:10px"><div class="seg mini" id="seg"><button data-s="-1" class="exp '+(sign<0?'on':'')+'">Dépense</button><button data-s="1" class="inc '+(sign>0?'on':'')+'">Revenu</button></div></div>';
   h+='</div>';
   h+='<div id="trBox" style="display:'+(kindNow==='tr'?'block':'none')+'"><label style="margin-top:0">Du compte</label><select id="fFrom">'+accOptions(fromId)+'</select><label>Vers le compte</label><select id="fTo">'+accOptions(toId)+'</select></div>';
-  h+='<label>Montant ('+esc(cur())+')</label><input id="fAmt" inputmode="decimal" placeholder="0,00" autocomplete="off" value="'+(amt===''?'':String(amt).replace('.',','))+'">';
+  h+='<label>Montant ('+esc(cur())+')</label><div class="amtrow"><div id="segWrap" style="display:'+(kindNow==='op'?'block':'none')+'"><div class="seg mini" id="seg"><button data-s="-1" class="exp '+(sign<0?'on':'')+'" aria-label="Dépense">−</button><button data-s="1" class="inc '+(sign>0?'on':'')+'" aria-label="Revenu">+</button></div></div><input id="fAmt" inputmode="decimal" placeholder="0,00" autocomplete="off" value="'+(amt===''?'':String(amt).replace('.',','))+'"></div>';
   h+='<div class="calcrow"><button type="button" data-op="+">+</button><button type="button" data-op="−">−</button><button type="button" data-op="×">×</button><button type="button" data-op="÷">÷</button><button type="button" data-op="=">=</button></div>';
   h+='<div class="note" id="calcPrev" style="margin-top:4px;min-height:1.2em"></div>';
   h+='<label class="chkrow"><input type="checkbox" id="fEst"'+(est0?' checked':'')+'> Montant estimé</label>';
@@ -652,6 +654,7 @@ function formSheet(mode,item,tpl){
   function applyKind(){
     $('opBox').style.display=kindNow==='op'?'block':'none';
     $('trBox').style.display=kindNow==='tr'?'block':'none';
+    $('segWrap').style.display=kindNow==='op'?'block':'none';
     if($('kindSeg'))Array.prototype.forEach.call($('kindSeg').children,function(x){x.classList.toggle('on',x.getAttribute('data-k')===kindNow);});
   }
   var catTouched=!!item||!!catId;
