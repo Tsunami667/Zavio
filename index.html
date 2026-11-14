@@ -214,6 +214,9 @@ nav button.on{color:var(--accent);background:var(--accentSoft)}
 .seg{display:flex;background:var(--field);border-radius:16px;padding:4px;gap:4px}
 .seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:11px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
 .amtrow{display:flex;gap:8px;align-items:center}
+.signrow{display:flex;gap:8px;align-items:center}
+.signrow input{flex:1;min-width:0;width:auto!important}
+.signbtn{flex:none;border:0;background:var(--field);color:var(--accent);font-weight:700;font-size:15px;font-family:inherit;border-radius:12px;padding:0 12px;height:46px;cursor:pointer}
 .amtrow{align-items:flex-start}
 .amtrow #segWrap{margin-top:3px}
 .amtcol{flex:1;min-width:0}
@@ -519,7 +522,16 @@ $('pick').addEventListener('click',function(e){
 $('pickWrap').addEventListener('click',function(e){if(e.target===$('pickWrap'))closePick();});
 
 /* ---------- feuilles / dialogues ---------- */
-function openSheet(html){$('sheet').innerHTML=html;$('sheetWrap').classList.add('show');$('sheet').scrollTop=0;}
+function signBtns(){
+  ['pGrow','aInit','hNet'].forEach(function(id){
+    var inp=$(id);if(!inp||inp.parentNode.className==='signrow')return;
+    var w=document.createElement('div');w.className='signrow';
+    var b=document.createElement('button');b.type='button';b.className='signbtn';b.textContent='−/+';b.setAttribute('aria-label','Changer le signe');
+    inp.parentNode.insertBefore(w,inp);w.appendChild(b);w.appendChild(inp);
+    b.onclick=function(){var v=inp.value.trim();inp.value=v.charAt(0)==='-'||v.charAt(0)==='−'?v.slice(1):(v?'-'+v:'-');inp.focus();};
+  });
+}
+function openSheet(html){$('sheet').innerHTML=html;signBtns();$('sheetWrap').classList.add('show');$('sheet').scrollTop=0;}
 function closeSheet(){$('sheetWrap').classList.remove('show');$('sheet').innerHTML='';}
 function choose(title,opts){
   var h='<h3>'+esc(title)+'</h3>';
