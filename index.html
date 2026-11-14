@@ -103,8 +103,8 @@ header .sub strong{font-size:34px;font-weight:800;letter-spacing:-.03em;font-var
 #app.comfy .grp{margin-bottom:12px;border-radius:20px;padding-bottom:4px}
 #app.comfy .row.tx+.row.tx .rc::before{left:72px}
 #app.comfy .row:not(.tx)+.row:not(.tx)::before{left:72px}
-.calcrow{display:flex;gap:6px;margin-top:6px}
-.calcrow button{flex:1;border:0;background:var(--field);color:var(--text);border-radius:12px;padding:9px 0;font-size:18px;font-weight:700;font-family:inherit;cursor:pointer}
+.calcrow{display:flex;gap:4px;margin-top:5px}
+.calcrow button{flex:1;border:0;background:var(--field);color:var(--text);border-radius:10px;padding:5px 0;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer}
 .selc{display:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--muted);flex:none;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:transparent}
 .selmode .selc{display:flex}
 .selmode .chk{display:none}
@@ -214,7 +214,10 @@ nav button.on{color:var(--accent);background:var(--accentSoft)}
 .seg{display:flex;background:var(--field);border-radius:16px;padding:4px;gap:4px}
 .seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:11px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
 .amtrow{display:flex;gap:8px;align-items:center}
-.amtrow #fAmt{flex:1;min-width:0;width:auto}
+.amtrow{align-items:flex-start}
+.amtrow #segWrap{margin-top:3px}
+.amtcol{flex:1;min-width:0}
+.amtrow #fAmt{width:100%}
 .seg.mini{padding:2px;border-radius:12px;gap:2px}
 .seg.mini button{flex:none;width:38px;padding:9px 0;font-size:18px;line-height:1;border-radius:10px;font-weight:700}
 .seg.mini button.on.exp{background:var(--danger);color:#fff;box-shadow:none}
@@ -236,7 +239,7 @@ input,textarea,select{-webkit-user-select:text;user-select:text;-webkit-touch-ca
 #content,#sheet,#pick,.pkbody{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y}
 #sheetWrap,#pickWrap,#dlg{touch-action:pan-y;overscroll-behavior:contain}
 #sheet input,#sheet select,#sheet textarea{max-width:100%;min-width:0}
-#sheet input[type=date]{display:block;-webkit-min-logical-width:0;min-height:50px}
+#sheet input[type=date]{display:block;-webkit-min-logical-width:0;min-height:50px;width:100%;max-width:100%;min-width:0;box-sizing:border-box}
 </style>
 </head>
 <body>
@@ -617,8 +620,7 @@ function formSheet(mode,item,tpl){
   h+='<label style="margin-top:0">Catégorie</label><input type="hidden" id="fCat" value="'+esc(catId||'')+'"><button type="button" class="fieldbtn" id="fCatBtn"></button>';
   h+='</div>';
   h+='<div id="trBox" style="display:'+(kindNow==='tr'?'block':'none')+'"><label style="margin-top:0">Du compte</label><select id="fFrom">'+accOptions(fromId)+'</select><label>Vers le compte</label><select id="fTo">'+accOptions(toId)+'</select></div>';
-  h+='<label>Montant ('+esc(cur())+')</label><div class="amtrow"><div id="segWrap" style="display:'+(kindNow==='op'?'block':'none')+'"><div class="seg mini" id="seg"><button data-s="-1" class="exp '+(sign<0?'on':'')+'" aria-label="Dépense">−</button><button data-s="1" class="inc '+(sign>0?'on':'')+'" aria-label="Revenu">+</button></div></div><input id="fAmt" inputmode="decimal" placeholder="0,00" autocomplete="off" value="'+(amt===''?'':String(amt).replace('.',','))+'"></div>';
-  h+='<div class="calcrow"><button type="button" data-op="+">+</button><button type="button" data-op="−">−</button><button type="button" data-op="×">×</button><button type="button" data-op="÷">÷</button><button type="button" data-op="=">=</button></div>';
+  h+='<label>Montant ('+esc(cur())+')</label><div class="amtrow"><div id="segWrap" style="display:'+(kindNow==='op'?'block':'none')+'"><div class="seg mini" id="seg"><button data-s="-1" class="exp '+(sign<0?'on':'')+'" aria-label="Dépense">−</button><button data-s="1" class="inc '+(sign>0?'on':'')+'" aria-label="Revenu">+</button></div></div><div class="amtcol"><input id="fAmt" inputmode="decimal" placeholder="0,00" autocomplete="off" value="'+(amt===''?'':String(amt).replace('.',','))+'"><div class="calcrow"><button type="button" data-op="+">+</button><button type="button" data-op="−">−</button><button type="button" data-op="×">×</button><button type="button" data-op="÷">÷</button><button type="button" data-op="=">=</button></div></div></div>';
   h+='<div class="note" id="calcPrev" style="margin-top:4px;min-height:1.2em"></div>';
   h+='<label class="chkrow"><input type="checkbox" id="fEst"'+(est0?' checked':'')+'> Montant estimé</label>';
   h+='<div class="note" style="margin-top:2px">Affiché avec un « ~ » en italique. Pointer l\'opération te demandera le montant réel.</div>';
