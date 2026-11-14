@@ -216,14 +216,15 @@ nav button.on{color:var(--accent);background:var(--accentSoft)}
 .amtrow{display:flex;gap:8px;align-items:center}
 .signrow{display:flex;gap:8px;align-items:center}
 .signrow input{flex:1;min-width:0;width:auto!important}
-.signbtn{flex:none;border:0;background:var(--field);color:var(--accent);font-weight:700;font-size:15px;font-family:inherit;border-radius:12px;padding:0 12px;height:46px;cursor:pointer}
+.signbtn{flex:none;border:0;background:var(--field);color:var(--accent);font-weight:700;font-size:15px;font-family:inherit;border-radius:12px;padding:0 12px;height:50px;cursor:pointer}
 .amtrow{align-items:flex-start}
 .amtrow #segWrap{margin-top:3px}
 .amtcol{flex:1;min-width:0}
 .amtrow #fAmt{width:100%}
 .seg.mini{padding:2px;border-radius:12px;gap:2px}
 .seg.mini button{flex:none;width:38px;padding:9px 0;font-size:18px;line-height:1;border-radius:10px;font-weight:700}
-.seg.mini button.on.exp{background:var(--danger);color:#fff;box-shadow:none}
+.seg.mini #seg button.on.exp,.seg.mini#seg button.on.exp{background:var(--danger);color:#fff;box-shadow:none}
+.seg button.on.acc{background:var(--accent);color:var(--accentText)}
 .seg button.on.exp{background:var(--card);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.15)}
 .seg button.on.inc{background:var(--pos);color:#fff}
 .two{display:flex;gap:10px}.two>*{flex:1;min-width:0}
@@ -242,7 +243,11 @@ input,textarea,select{-webkit-user-select:text;user-select:text;-webkit-touch-ca
 #content,#sheet,#pick,.pkbody{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y}
 #sheetWrap,#pickWrap,#dlg{touch-action:pan-y;overscroll-behavior:contain}
 #sheet input,#sheet select,#sheet textarea{max-width:100%;min-width:0}
-#sheet input[type=date]{display:block;-webkit-min-logical-width:0;min-height:50px;width:100%;max-width:100%;min-width:0;box-sizing:border-box}
+#sheet input:not([type=checkbox]):not([type=hidden]),#sheet select{height:50px;box-sizing:border-box}
+.dwrap{position:relative;overflow:hidden;border-radius:14px;background:var(--field);height:50px;width:100%;max-width:100%;min-width:0}
+.dwrap input[type=date]{-webkit-appearance:none;appearance:none;display:block;width:100%;max-width:100%;min-width:0;height:50px;background:transparent!important;text-align:left;box-sizing:border-box;margin:0}
+.dwrap input[type=date]::-webkit-date-and-time-value{text-align:left;min-width:0}
+.dwrap input[type=date]::-webkit-calendar-picker-indicator{opacity:.6}
 </style>
 </head>
 <body>
@@ -531,7 +536,8 @@ function signBtns(){
     b.onclick=function(){var v=inp.value.trim();inp.value=v.charAt(0)==='-'||v.charAt(0)==='−'?v.slice(1):(v?'-'+v:'-');inp.focus();};
   });
 }
-function openSheet(html){$('sheet').innerHTML=html;signBtns();$('sheetWrap').classList.add('show');$('sheet').scrollTop=0;}
+function wrapDates(){Array.prototype.forEach.call(document.querySelectorAll('#sheet input[type=date]'),function(i){if(i.parentNode.className==='dwrap')return;var w=document.createElement('div');w.className='dwrap';i.parentNode.insertBefore(w,i);w.appendChild(i);});}
+function openSheet(html){$('sheet').innerHTML=html;signBtns();wrapDates();$('sheetWrap').classList.add('show');$('sheet').scrollTop=0;}
 function closeSheet(){$('sheetWrap').classList.remove('show');$('sheet').innerHTML='';}
 function choose(title,opts){
   var h='<h3>'+esc(title)+'</h3>';
@@ -634,16 +640,15 @@ function formSheet(mode,item,tpl){
   h+='<div id="trBox" style="display:'+(kindNow==='tr'?'block':'none')+'"><label style="margin-top:0">Du compte</label><select id="fFrom">'+accOptions(fromId)+'</select><label>Vers le compte</label><select id="fTo">'+accOptions(toId)+'</select></div>';
   h+='<label>Montant ('+esc(cur())+')</label><div class="amtrow"><div id="segWrap" style="display:'+(kindNow==='op'?'block':'none')+'"><div class="seg mini" id="seg"><button data-s="-1" class="exp '+(sign<0?'on':'')+'" aria-label="Dépense">−</button><button data-s="1" class="inc '+(sign>0?'on':'')+'" aria-label="Revenu">+</button></div></div><div class="amtcol"><input id="fAmt" inputmode="decimal" placeholder="0,00" autocomplete="off" value="'+(amt===''?'':String(amt).replace('.',','))+'"><div class="calcrow"><button type="button" data-op="+">+</button><button type="button" data-op="−">−</button><button type="button" data-op="×">×</button><button type="button" data-op="÷">÷</button><button type="button" data-op="=">=</button></div></div></div>';
   h+='<div class="note" id="calcPrev" style="margin-top:4px;min-height:1.2em"></div>';
-  h+='<label class="chkrow"><input type="checkbox" id="fEst"'+(est0?' checked':'')+'> Montant estimé</label>';
-  h+='<div class="note" style="margin-top:2px">Affiché avec un « ~ » en italique. Pointer l\'opération te demandera le montant réel.</div>';
+  h+='<label class="chkrow"><input type="checkbox" id="fEst"'+(est0?' checked':'')+'> Montant estimé (affiché avec « ~ »)</label>';
   h+='<label>Description (facultatif)</label><input id="fNote" value="'+esc(note)+'">';
-  h+='<label>'+(isRule?'Première échéance':'Date')+'</label><input type="date" id="fDate" value="'+date+'">';
+  var dateBlk='<label>'+(isRule?'Première échéance':'Date')+'</label><input type="date" id="fDate" value="'+date+'">';
   if(isRule||isNew){
     var freq=isRule?item.freq:'';
-    h+='<label>Répétition</label><select id="fFreq">';
+    h+='<div class="two"><div>'+dateBlk+'</div><div><label>Répétition</label><select id="fFreq">';
     if(!isRule)h+='<option value="">Jamais</option>';
     [['d','Chaque jour'],['w','Chaque semaine'],['m','Chaque mois'],['y','Chaque année']].forEach(function(f){h+='<option value="'+f[0]+'"'+(f[0]===freq?' selected':'')+'>'+f[1]+'</option>';});
-    h+='</select>';
+    h+='</select></div></div>';
     h+='<div id="repBox" style="display:'+(isRule?'block':'none')+'"><div class="two"><div><label>Tous les (n)</label><input type="number" min="1" id="fInt" value="'+(isRule?(item.interval||1):1)+'"></div><div><label>Jusqu\'au (facultatif)</label><input type="date" id="fEnd" value="'+(isRule&&item.end?item.end:'')+'"></div></div>'+
       '<label>Nombre d\'échéances (facultatif)</label><input type="number" min="1" max="1000" id="fCount" placeholder="Ex. 24" value="'+(isRule&&item.count?item.count:'')+'">'+
       '<div class="note" style="margin-top:4px">La récurrence s\'arrête après ce nombre d\'échéances, ou à la date de fin si elle arrive avant.</div>'+
@@ -651,7 +656,7 @@ function formSheet(mode,item,tpl){
         [['same','Même jour chaque mois'],['last','Dernier jour du mois'],['firstwd','Premier jour ouvré du mois'],['lastwd','Dernier jour ouvré du mois']].map(function(o){return '<option value="'+o[0]+'"'+(o[0]===((isRule&&item.pattern)||'same')?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></div>'+
       '<div id="wkBox" style="display:none"><label>Si la date tombe un week-end</label><select id="fWk">'+
         [['','Ne pas décaler'],['prev','Décaler au vendredi précédent'],['next','Décaler au lundi suivant']].map(function(o){return '<option value="'+o[0]+'"'+(o[0]===((isRule&&item.wk)||'')?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></div></div>';
-  }
+  }else h+=dateBlk;
   if(linked)h+='<div class="note">🔁 '+esc(freqLabel(linked))+' — la fréquence se modifie dans l\'onglet « Récurrentes ».</div>';
   if(linked&&isTr)h+='<div class="note">Les deux comptes sont modifiés ensemble, pour cette échéance seulement.</div>';
   if(isRule)h+='<div class="note">Les échéances à venir sont recréées avec ces réglages. Les opérations passées ne changent pas.</div>';
@@ -981,16 +986,15 @@ function catSheet(c,presetParent){
   var color=c?c.color:(par?par.color:CAT_COLORS[0]);
   var ctype=c?(c.type||'exp'):(par?par.type:'exp');
   var h='<h2>'+(isNew?(par?'Nouvelle sous-catégorie':'Nouvelle catégorie'):(c.parentId?'Modifier la sous-catégorie':'Modifier la catégorie'))+'</h2>';
-  h+='<label style="margin-top:0">Nom</label><input id="cName" value="'+esc(c?c.name:'')+'" placeholder="'+(par?'Ex. Netflix, Électricité…':'Ex. Abonnements')+'">';
+  h+='<div class="two"><div><label style="margin-top:0">Nom</label><input id="cName" value="'+esc(c?c.name:'')+'" placeholder="'+(par?'Ex. Netflix, Électricité…':'Ex. Abonnements')+'"></div><div style="flex:0 0 76px"><label style="margin-top:0">Icône</label><input id="cIcon" value="'+esc(c?c.icon:(par?par.icon:'🏷️'))+'" maxlength="4" style="text-align:center"></div></div>';
   if(!hasKids){
     h+='<label>Sous-catégorie de</label><select id="cParent"><option value="">Aucune (catégorie principale)</option>'+
       db.cats.filter(function(p){return !p.parentId&&(!c||p.id!==c.id);}).sort(catSort).map(function(p){return '<option value="'+p.id+'"'+(p.id===pid?' selected':'')+'>'+esc(p.icon+' '+p.name)+'</option>';}).join('')+'</select>';
   }else h+='<div class="note">Cette catégorie contient des sous-catégories : elle ne peut pas devenir elle-même une sous-catégorie.</div>';
   h+='<div class="note" id="cInh" style="display:'+(par?'block':'none')+'">Le type (dépense ou revenu) et la couleur sont ceux de la catégorie principale.</div>';
-  h+='<label>Icône (un emoji)</label><input id="cIcon" value="'+esc(c?c.icon:(par?par.icon:'🏷️'))+'" maxlength="4">';
   h+='<div id="cOwn" style="display:'+(par?'none':'block')+'">';
   h+='<label>Type</label><div class="seg" id="cSeg"><button data-t="exp" class="exp '+(ctype==='exp'?'on':'')+'">Dépense</button><button data-t="inc" class="inc '+(ctype==='inc'?'on':'')+'">Revenu</button></div>';
-  h+='<div class="note" style="margin-top:6px">Les nouvelles opérations de cette catégorie seront automatiquement des dépenses ou des revenus. Les opérations déjà saisies ne changent pas.</div>';
+  h+='<div class="note" style="margin-top:6px">Signe par défaut des nouvelles opérations (modifiable à chaque saisie).</div>';
   h+='<label>Couleur</label><div class="sw" id="sw">'+CAT_COLORS.map(function(x){return '<i data-c="'+x+'" style="background:'+x+'" class="'+(x===color?'on':'')+'"></i>';}).join('')+'</div>';
   h+='</div>';
   h+='<button class="btn" id="cSave">Enregistrer</button>';
@@ -1559,15 +1563,15 @@ function assetSheet(a){
   h+='<div id="pNewK" style="display:none"><div class="two"><div style="flex:0 0 90px"><label>Icône</label><input id="pKIc" value="🏷️" maxlength="4"></div><div><label>Nom du type</label><input id="pKNm" placeholder="Ex. Vin, Art, Parts de SCPI"></div></div></div>';
   h+='<label>Valeur actuelle ('+esc(cur())+')</label><input id="pVal" inputmode="decimal" value="'+numIn(a&&a.value)+'" placeholder="0,00">';
   var gmE=!!(a&&a.growthMode==='e');
-  h+='<label>Évolution annuelle estimée (facultatif)</label><div class="seg mini" id="gSeg" style="width:88px;margin:0 0 6px"><button type="button" data-gm="p" class="exp '+(gmE?'':'on')+'">%</button><button type="button" data-gm="e" class="exp '+(gmE?'on':'')+'">'+esc(cur())+'</button></div><input id="pGrow" inputmode="decimal" value="'+numIn(a&&a.growth)+'" placeholder="0">';
-  h+='<div class="two"><div><label>S\'arrête quand il vaut (facultatif)</label><input id="pStopV" inputmode="decimal" value="'+(a&&a.stopVal!=null&&a.stopVal!==''?numIn(a.stopVal):'')+'" placeholder="Ex. 5000"></div><div><label>Ou à la date</label><input type="date" id="pStopD" value="'+esc(a&&a.stopDate||'')+'"></div></div>';
-  h+='<div class="note">Sert uniquement à la projection. « % » : pourcentage par an (ex. 2 pour un livret). « '+esc(cur())+' » : montant fixe retiré ou ajouté une fois par an (ex. −500). Le bouton −/+ donne une perte de valeur. Le seuil ou la date arrête l\'évolution (la voiture arrête de perdre à 5 000 €).</div>';
+  h+='<label>Évolution annuelle estimée (facultatif)</label><div class="seg mini" id="gSeg" style="width:80px;margin:0;flex:none;height:50px;box-sizing:border-box"><button type="button" data-gm="p" class="acc '+(gmE?'':'on')+'">%</button><button type="button" data-gm="e" class="acc '+(gmE?'on':'')+'">'+esc(cur())+'</button></div><input id="pGrow" inputmode="decimal" value="'+numIn(a&&a.growth)+'" placeholder="0">';
+  h+='<div class="two"><div><label>S\'arrête à la valeur</label><input id="pStopV" inputmode="decimal" value="'+(a&&a.stopVal!=null&&a.stopVal!==''?numIn(a.stopVal):'')+'" placeholder="Ex. 5000"></div><div><label>Ou à la date</label><input type="date" id="pStopD" value="'+esc(a&&a.stopDate||'')+'"></div></div>';
+  h+='<div class="note">Projection seulement. « % » par an, ou « '+esc(cur())+' » retirés/ajoutés une fois par an. −/+ pour une perte. Le seuil ou la date arrête l\'évolution.</div>';
   h+='<div id="pConBox" style="display:'+(noContrib(a?a.kind:'immo')?'none':'block')+'"><div id="pConAmt"><label>Versements prévus (facultatif)</label><div class="two"><input id="pCon" inputmode="decimal" value="'+numIn(a&&a.contrib)+'" placeholder="Ex. 100"><select id="pConF"><option value="m"'+(a&&a.contribFreq==='y'?'':' selected')+'>par mois</option><option value="y"'+(a&&a.contribFreq==='y'?' selected':'')+'>par an</option></select></div></div>';
   h+='<label>Ce versement est…</label><select id="pConB"><option value="0"'+(a&&a.contribBudget?'':' selected')+'>pas encore dans mon budget</option><option value="1"'+(a&&a.contribBudget?' selected':'')+'>déjà dans une opération récurrente</option></select>';
   h+='<div id="pConRBox" style="display:none"><label>Quelle opération récurrente ?</label><select id="pConR">'+ruleOptions(a&&a.contribRuleId)+'</select>'+(linkRules().length?'':'<div class="note">Aucune dépense récurrente trouvée. Crée-la d\'abord dans l\'onglet Récurrentes, ou choisis « pas encore dans mon budget ».</div>')+'</div>';
   h+='<div class="note">« Pas encore dans mon budget » : tu indiques la somme ici, et la projection la retire de tes comptes (sinon ton patrimoine paraîtrait gonflé). « Déjà dans une opération récurrente » : tu choisis ta récurrente, et l\'appli lit directement son montant, ses dates et sa fin, sans rien retirer de plus. Plus de double comptage possible.</div></div>';
-  h+='<div id="pBuyBox" style="display:'+(noBuy(a?a.kind:'immo')?'none':'block')+'"><label>Prix d\'achat (facultatif)</label><input id="pBuy" inputmode="decimal" value="'+numIn(a&&a.buy)+'" placeholder="0,00">';
-  h+='<label>Date d\'achat (facultatif)</label><input type="date" id="pBuyD" value="'+esc(a&&a.buyDate||'')+'"></div>';
+  h+='<div id="pBuyBox" style="display:'+(noBuy(a?a.kind:'immo')?'none':'block')+'"><div class="two"><div><label>Prix d\'achat</label><input id="pBuy" inputmode="decimal" value="'+numIn(a&&a.buy)+'" placeholder="0,00"></div>';
+  h+='<div><label>Date d\'achat</label><input type="date" id="pBuyD" value="'+esc(a&&a.buyDate||'')+'"></div></div></div>';
   if(!isNew){
     var hs=(a.hist||[]).slice().sort(function(x,y){return x.d<y.d?1:-1;}).slice(0,8);
     if(hs.length>1){
@@ -1586,6 +1590,7 @@ function assetSheet(a){
   $('pCancel').onclick=closeSheet;
   function syncCon(){var on=$('pConB').value==='1';$('pConRBox').style.display=on?'block':'none';$('pConAmt').style.display=on?'none':'block';}
   $('pConB').onchange=syncCon;syncCon();
+  (function(){var sr=$('pGrow').parentNode;sr.insertBefore($('gSeg'),sr.firstChild);})();
   $('gSeg').onclick=function(e){var b=e.target.closest('button');if(!b)return;Array.prototype.forEach.call($('gSeg').children,function(x){x.classList.toggle('on',x===b);});};
   $('pKind').onchange=function(){$('pNewK').style.display=this.value==='__new'?'block':'none';$('pConBox').style.display=noContrib(this.value)?'none':'block';$('pBuyBox').style.display=noBuy(this.value)?'none':'block';$('pName').placeholder=assetPh(this.value);};
   if($('pLoan'))$('pLoan').onclick=function(){loanSheet(null,a.id);};
