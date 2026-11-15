@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Zavio</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#5b4de0">
+<meta name="theme-color" content="#0e0d14">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Zavio">
@@ -852,9 +852,11 @@ function mixHex(a,b,t){
   return 'rgb('+x.map(function(v,i){return Math.round(v*(1-t)+y[i]*t);}).join(',')+')';
 }
 function rgba(h,al){var v=[1,3,5].map(function(i){return parseInt(h.substr(i,2),16);});return 'rgba('+v.join(',')+','+al+')';}
+function syncBar(){try{var c=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();if(!c)return;var m=document.querySelector('meta[name=theme-color]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',c);}catch(er){}}
 function applyTheme(){
   var t=db.settings.theme,r=document.documentElement;
   if(t==='light'||t==='dark')r.setAttribute('data-theme',t);else r.removeAttribute('data-theme');
+  syncBar();
   var names=['--accent','--accentSoft','--future','--futureline','--fabShadow'];
   var hex=null;COLORS.forEach(function(c){if(c[0]===db.settings.color)hex=c[2]||null;});
   if(!hex){names.forEach(function(n){r.style.removeProperty(n);});return;}
