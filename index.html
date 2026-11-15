@@ -465,7 +465,7 @@ function catBtnInner(id,touched){
 }
 function pickCategory(curId,onPick){
   pk={cur:curId||'',onPick:onPick,level:'',q:'',open:{}};
-  var c0=catById(curId);if(c0&&c0.parentId)pk.open[c0.parentId]=true;
+  db.cats.forEach(function(c){if(c.parentId)pk.open[c.parentId]=true;});
   $('pickWrap').classList.add('show');renderPick();
 }
 function closePick(){pk=null;$('pickWrap').classList.remove('show');$('pick').innerHTML='';}
