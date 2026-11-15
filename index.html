@@ -652,9 +652,7 @@ function formSheet(mode,item,tpl){
     var fsel=(isRule&&FREQS.some(function(f){return f[0]===freq+(item.interval||1);}))?freq+(item.interval||1):freq;
     FREQS.forEach(function(f){h+='<option value="'+f[0]+'"'+(f[0]===fsel?' selected':'')+'>'+f[1]+'</option>';});
     h+='</select></div></div>';
-    h+='<div id="repBox" style="display:'+(isRule?'block':'none')+'"><div class="two"><div><label>Tous les (n)</label><input type="number" min="1" id="fInt" value="'+(isRule?(item.interval||1):1)+'"></div><div><label>Jusqu\'au (facultatif)</label><input type="date" id="fEnd" value="'+(isRule&&item.end?item.end:'')+'"></div></div>'+
-      '<label>Nombre d\'échéances (facultatif)</label><input type="number" min="1" max="1000" id="fCount" placeholder="Ex. 24" value="'+(isRule&&item.count?item.count:'')+'">'+
-      '<div class="note" style="margin-top:4px">La récurrence s\'arrête après ce nombre d\'échéances, ou à la date de fin si elle arrive avant.</div>'+
+    h+='<div id="repBox" style="display:'+(isRule?'block':'none')+'"><div id="intBox"><label>Tous les (n)</label><input type="number" min="1" id="fInt" value="'+(isRule?(item.interval||1):1)+'"></div><div class="two"><div><label>Jusqu\'au</label><input type="date" id="fEnd" value="'+(isRule&&item.end?item.end:'')+'"></div><div><label>Ou nb d\'échéances</label><input type="number" min="1" max="1000" id="fCount" placeholder="Ex. 24" value="'+(isRule&&item.count?item.count:'')+'"></div></div>'+
       '<div id="patBox" style="display:none"><label>Jour du mois</label><select id="fPat">'+
         [['same','Même jour chaque mois'],['last','Dernier jour du mois'],['firstwd','Premier jour ouvré du mois'],['lastwd','Dernier jour ouvré du mois']].map(function(o){return '<option value="'+o[0]+'"'+(o[0]===((isRule&&item.pattern)||'same')?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></div>'+
       '<div id="wkBox" style="display:none"><label>Si la date tombe un week-end</label><select id="fWk">'+
@@ -714,7 +712,7 @@ function formSheet(mode,item,tpl){
   function syncRep(){
     var f=FV(),pm=/^[dwmy](\d+)$/.exec($('fFreq').value);
     if(pm)$('fInt').value=pm[1];
-    $('fInt').parentNode.style.visibility=pm?'hidden':'visible';
+    $('intBox').style.display=pm?'none':'block';
     $('patBox').style.display=f==='m'?'block':'none';
     $('wkBox').style.display=(f&&f!=='d')?'block':'none';
   }
