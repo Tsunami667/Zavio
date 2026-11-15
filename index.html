@@ -428,10 +428,12 @@ function generate(r){
   }
 }
 function ensureAll(){db.rules.forEach(generate);}
+var FREQS=[['d','Chaque jour'],['w','Chaque semaine'],['w2','Toutes les 2 semaines'],['w4','Toutes les 4 semaines'],['m','Chaque mois'],['m2','Tous les 2 mois'],['m3','Tous les 3 mois (trimestre)'],['m6','Tous les 6 mois (semestre)'],['y','Chaque année'],['y2','Tous les 2 ans']];
+function FV(){var e=$('fFreq');return e?e.value.charAt(0):'';}
 function freqLabel(r){
   var k=r.interval||1;
   var u={d:['jour','jours'],w:['semaine','semaines'],m:['mois','mois'],y:['an','ans']}[r.freq];
-  var base=k===1?{d:'Chaque jour',w:'Chaque semaine',m:'Chaque mois',y:'Chaque année'}[r.freq]:'Tous les '+k+' '+u[1];
+  var base=k===1?{d:'Chaque jour',w:'Chaque semaine',m:'Chaque mois',y:'Chaque année'}[r.freq]:(r.freq==='w'?'Toutes les ':'Tous les ')+k+' '+u[1];
   var extra='';
   if(r.freq==='m'){var P={last:'dernier jour',firstwd:'1er jour ouvré',lastwd:'dernier jour ouvré'}[r.pattern||'same'];if(P)extra+=' · '+P;}
   if(r.wk)extra+=' · '+(r.wk==='prev'?'avant le week-end':'après le week-end');
@@ -607,7 +609,7 @@ function txTitle(t){
 }
 function trIcon(){return '<div class="ico sym" style="background:#8e8e9938">⇄</div>';}
 function readRep(){
-  var f=$('fFreq')?$('fFreq').value:'';
+  var f=FV();
   var c=$('fCount')?parseInt($('fCount').value,10):0;
   return {pattern:(f==='m'&&$('fPat'))?$('fPat').value:'same',wk:(f&&f!=='d'&&$('fWk'))?$('fWk').value:'',count:(c>0)?Math.min(c,1000):0};
 }
@@ -647,7 +649,8 @@ function formSheet(mode,item,tpl){
     var freq=isRule?item.freq:'';
     h+='<div class="two"><div>'+dateBlk+'</div><div><label>Répétition</label><select id="fFreq">';
     if(!isRule)h+='<option value="">Jamais</option>';
-    [['d','Chaque jour'],['w','Chaque semaine'],['m','Chaque mois'],['y','Chaque année']].forEach(function(f){h+='<option value="'+f[0]+'"'+(f[0]===freq?' selected':'')+'>'+f[1]+'</option>';});
+    var fsel=(isRule&&FREQS.some(function(f){return f[0]===freq+(item.interval||1);}))?freq+(item.interval||1):freq;
+    FREQS.forEach(function(f){h+='<option value="'+f[0]+'"'+(f[0]===fsel?' selected':'')+'>'+f[1]+'</option>';});
     h+='</select></div></div>';
     h+='<div id="repBox" style="display:'+(isRule?'block':'none')+'"><div class="two"><div><label>Tous les (n)</label><input type="number" min="1" id="fInt" value="'+(isRule?(item.interval||1):1)+'"></div><div><label>Jusqu\'au (facultatif)</label><input type="date" id="fEnd" value="'+(isRule&&item.end?item.end:'')+'"></div></div>'+
       '<label>Nombre d\'échéances (facultatif)</label><input type="number" min="1" max="1000" id="fCount" placeholder="Ex. 24" value="'+(isRule&&item.count?item.count:'')+'">'+
@@ -709,7 +712,9 @@ function formSheet(mode,item,tpl){
     };
   });
   function syncRep(){
-    var f=$('fFreq').value;
+    var f=FV(),pm=/^[dwmy](\d+)$/.exec($('fFreq').value);
+    if(pm)$('fInt').value=pm[1];
+    $('fInt').parentNode.style.visibility=pm?'hidden':'visible';
     $('patBox').style.display=f==='m'?'block':'none';
     $('wkBox').style.display=(f&&f!=='d')?'block':'none';
   }
@@ -729,7 +734,7 @@ function formSheet(mode,item,tpl){
       if(!from||!to||from===to){toast('Choisis deux comptes différents');return;}
       if(isRule){item.accId=from;item.toAccId=to;saveRule(item,{title:'Virement',note:nt,amount:-a,catId:'',est:est},d);return;}
       if(isNew){
-        var fq0=$('fFreq')?$('fFreq').value:'';
+        var fq0=FV();
         if(fq0){
           var iv0=Math.max(1,parseInt($('fInt').value,10)||1);
           var r0={id:uid(),title:'Virement',note:nt,amount:-a,catId:'',freq:fq0,interval:iv0,start:d,end:$('fEnd').value||'',nextIndex:0,accId:from,toAccId:to,pattern:readRep().pattern,wk:readRep().wk,count:readRep().count,est:est};
@@ -758,7 +763,7 @@ function formSheet(mode,item,tpl){
     var f={title:keepTitle?src.title:(c?c.name:'Opération'),note:nt,amount:curSign*a,catId:cid,est:est};
     if(isRule){item.toAccId='';saveRule(item,f,d);return;}
     if(isNew){
-      var fq=$('fFreq').value;
+      var fq=FV();
       if(fq){
         var iv=Math.max(1,parseInt($('fInt').value,10)||1);
         var r={id:uid(),title:f.title,note:f.note,amount:f.amount,catId:f.catId,freq:fq,interval:iv,start:d,end:$('fEnd').value||'',nextIndex:0,accId:curAcc().id,pattern:readRep().pattern,wk:readRep().wk,count:readRep().count,est:est};
@@ -828,7 +833,7 @@ function saveRule(r,f,start){
   db.txs=db.txs.filter(function(x){return !(x.ruleId===r.id&&x.date>=t);});
   r.title=f.title;r.note=f.note;r.amount=f.amount;r.catId=f.catId;r.start=start;r.est=!!f.est;
   var rp=readRep();r.pattern=rp.pattern;r.wk=rp.wk;r.count=rp.count;
-  r.freq=$('fFreq').value;r.interval=Math.max(1,parseInt($('fInt').value,10)||1);r.end=$('fEnd').value||'';
+  r.freq=FV();r.interval=Math.max(1,parseInt($('fInt').value,10)||1);r.end=$('fEnd').value||'';
   r.nextIndex=firstIndexFrom(r,t);
   generate(r);finish();
 }
