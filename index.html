@@ -308,6 +308,23 @@ function migrate(){
   db.txs.forEach(function(t){if(!t.accId||!accById(t.accId))t.accId=a0;});
   db.rules.forEach(function(r){if(!r.accId||!accById(r.accId))r.accId=a0;});
   if(!db.settings.current||!accById(db.settings.current))db.settings.current=a0;
+  db.loans.forEach(function(l){
+    if(l.simple){l.monthlyInBudget=false;l.monthlyRuleId='';return;}
+    var t=todayStr(),rem=oldLoanRemaining(l,t);
+    l.simple=true;l.balance=rem;l.balanceDate=t;l.principal=rem;l.first=t;l.months=0;l.ruleId='';
+    l.monthlyInBudget=false;l.monthlyRuleId='';if(!(rem>0))l.monthly=0;
+  });
+  db.assets.forEach(function(a){
+    if(a.contribRuleId){
+      var r=byId(db.rules,a.contribRuleId);
+      if(r){
+        var iv=+r.interval||1,amt=Math.abs(r.amount);
+        if(r.freq==='y'){a.contrib=r2(amt/iv);a.contribFreq='y';}
+        else{var pm=r.freq==='w'?52/12:r.freq==='d'?365/12:1;a.contrib=r2(amt*pm/iv);a.contribFreq='m';}
+      }
+    }
+    a.contribBudget=false;a.contribRuleId='';
+  });
   db.cats.forEach(function(c){
     if(c.parentId===undefined)c.parentId='';
     if(c.parentId&&!catById(c.parentId))c.parentId='';
@@ -1271,7 +1288,6 @@ function loanById(id){return byId(db.loans,id);}
 function numIn(n){return n?String(n).replace('.',','):'';}
 function pctTxt(n){return n.toLocaleString('fr-FR',{maximumFractionDigits:1});}
 function monthYear(s){return parse(s).toLocaleDateString('fr-FR',{month:'short',year:'numeric'});}
-function loanCalc(P,rate,n){var r=rate/1200;return r2(r?P*r/(1-Math.pow(1+r,-n)):P/n);}
 function loanPaid(l,date){var k=0;while(k<l.months&&addMonths(l.first,k)<=date)k++;return k;}
 function simLoan(l,date){
   var B=+l.balance||0,m=+l.monthly||0,paid=0;
@@ -1281,14 +1297,13 @@ function simLoan(l,date){
   for(var i=0;i<k&&B>0;i++){B=B*(1+r);var p=Math.min(m,B);B-=p;paid+=p;}
   return {bal:B,paid:paid};
 }
-function loanRemaining(l,date){
-  if(l.simple)return Math.max(0,r2(simLoan(l,date).bal));
+function loanRemaining(l,date){return Math.max(0,r2(simLoan(l,date).bal));}
+function oldLoanRemaining(l,date){
   var k=loanPaid(l,date);if(k>=l.months)return 0;
   var r=l.rate/1200,B=l.principal;
   for(var i=0;i<k;i++)B-=(l.monthly-B*r);
   return Math.max(0,r2(B));
 }
-function loanEnd(l){return addMonths(l.first,l.months-1);}
 function valEvery(){return db.settings.valEvery===undefined?6:+db.settings.valEvery;}
 function valRef(){
   var ref=db.settings.lastValUpdate||'';
@@ -1337,11 +1352,10 @@ function quickSheet(){
   };
 }
 function patTotals(){
-  var t=todayStr(),acc=0,as=0,debt=0;
-  db.accounts.forEach(function(a){acc+=accBalance(a,t);});
+  var t=todayStr(),as=0,debt=0;
   db.assets.forEach(function(a){as+=+a.value||0;});
   db.loans.forEach(function(l){debt+=loanRemaining(l,t);});
-  acc=r2(acc);as=r2(as);debt=r2(debt);
+  as=r2(as);debt=r2(debt);
   var iG=0,iD=0,oG=0,oD=0;
   db.assets.forEach(function(a){if(a.kind==='immo')iG+=+a.value||0;else oG+=+a.value||0;});
   db.loans.forEach(function(l){
@@ -1349,7 +1363,7 @@ function patTotals(){
     if(a&&a.kind==='immo')iD+=rem;else oD+=rem;
   });
   iG=r2(iG);iD=r2(iD);oG=r2(oG);oD=r2(oD);
-  return {acc:acc,assets:as,debt:debt,net:r2(acc+as-debt),immoGross:iG,immoDebt:iD,immoNet:r2(iG-iD),otherGross:oG,otherDebt:oD,otherNet:r2(oG-oD)};
+  return {assets:as,debt:debt,net:r2(as-debt),immoGross:iG,immoDebt:iD,immoNet:r2(iG-iD),otherGross:oG,otherDebt:oD,otherNet:r2(oG-oD)};
 }
 /* ---------- évolution et projection du patrimoine ---------- */
 function takeSnapshot(){
@@ -1391,58 +1405,19 @@ function patEvolution(t,T){
   rows+='<div class="row" data-hist="1"><div class="ico" style="background:#8e8e992e">🗂</div><div class="mid"><div class="t">Relevés du patrimoine</div><div class="s">'+snaps.length+' relevé'+(snaps.length>1?'s':'')+' · un par mois, enregistré automatiquement. Ajoute-y le patrimoine au 31/12 des années passées.</div></div><div class="right"><div class="amt" style="color:var(--muted)">›</div></div></div>';
   return '<div class="phead">Évolution (comparée au 31/12 de l\'année précédente)</div><div class="grp">'+rows+'</div>';
 }
-function futureRuleSum(a,D){
-  var sum=0;
-  db.rules.forEach(function(r){
-    var mine=r.toAccId?(r.accId===a.id?r.amount:(r.toAccId===a.id?-r.amount:0)):(r.accId===a.id?r.amount:0);
-    if(!mine)return;
-    var lim=r.count?firstValidIndex(r)+r.count:Infinity,idx=r.nextIndex,g=0;
-    while(g++<6000){
-      if(idx>=lim)break;
-      if(occBase(r,idx)<r.start){idx++;continue;}
-      var d=occ(r,idx);
-      if(r.end&&d>r.end)break;
-      if(d>D)break;
-      sum+=mine;idx++;
-    }
-  });
-  return sum;
-}
-function linkRules(){return db.rules.filter(function(r){return r.amount<0&&!r.toAccId;}).sort(function(x,y){return (x.title||'').localeCompare(y.title||'');});}
-function ruleOptions(selId){
-  var L=linkRules(),h='<option value="">— choisir l\'opération —</option>';
-  L.forEach(function(r){h+='<option value="'+r.id+'"'+(r.id===selId?' selected':'')+'>'+esc(r.title||'Sans titre')+' · '+esc(money(Math.abs(r.amount)))+' · '+esc(freqLabel(r).toLowerCase())+'</option>';});
-  return h;
-}
-function ruleDeps(r,t,n){
-  var deps=[],i;for(i=0;i<n;i++)deps.push(0);
-  var D=addMonths(t,n),lim=r.count?firstValidIndex(r)+r.count:Infinity,idx=0,g=0;
-  while(g++<6000){
-    if(idx>=lim)break;
-    if(occBase(r,idx)<r.start){idx++;continue;}
-    var d=occ(r,idx);
-    if(r.end&&d>r.end)break;
-    if(d>D)break;
-    if(d>t){var k=0;while(k<n-1&&d>addMonths(t,k+1))k++;deps[k]+=Math.abs(r.amount);}
-    idx++;
-  }
-  return deps;
-}
 function assetFuture(a,yrs){
   var v=+a.value||0,gv=+a.growth||0,gm=a.growthMode==='e',g=gm?0:gv/100,c=+a.contrib||0,dep=0;
   var sv=(a.stopVal===''||a.stopVal==null||isNaN(+a.stopVal))?null:+a.stopVal,sd=a.stopDate||'',t0=todayStr();
   var rm=Math.pow(1+g,1/12)-1,n=Math.max(0,Math.round(yrs*12));
-  var r=a.contribRuleId?byId(db.rules,a.contribRuleId):null,deps=r?ruleDeps(r,todayStr(),n):null;
   for(var i=0;i<n;i++){
     if(!sd||addMonths(t0,i+1)<=sd){
       var nv=gm?(((i+1)%12===0)?v+gv:v):v*(1+rm);
       if(sv!==null){if(gv<0)nv=Math.max(nv,Math.min(v,sv));else if(gv>0)nv=Math.min(nv,Math.max(v,sv));}
       v=nv;
     }
-    if(deps)v+=deps[i];
-    else if(c>0&&(a.contribFreq==='y'?((i+1)%12===0):true)){v+=c;dep+=c;}
+    if(c>0&&(a.contribFreq==='y'?((i+1)%12===0):true)){v+=c;dep+=c;}
   }
-  return {val:v,dep:dep,linked:!!r};
+  return {val:v,dep:dep};
 }
 function assetPh(k){
   var P={immo:'Ex. Résidence principale, studio locatif, garage',auto:'Ex. Voiture, moto, scooter',montre:'Ex. Montre, bague, collier',livret:'Ex. Livret A, LDDS, PEL',bourse:'Ex. PEA, compte-titres, ETF World',av:'Ex. Assurance-vie, contrat multisupport',crypto:'Ex. Bitcoin, Ethereum',metaux:'Ex. Pièces d\'or, lingot',placement:'Ex. SCPI, parts de société',autre:'Ex. Œuvre d\'art, collection, mobilier'};
@@ -1451,18 +1426,12 @@ function assetPh(k){
 function noBuy(k){return k==='livret'||k==='av';}
 function noContrib(k){return k==='immo'||k==='auto'||k==='montre';}
 function contribTxt(a){
-  if(a.contribRuleId){var r=byId(db.rules,a.contribRuleId);return r?'+'+money(Math.abs(r.amount))+' · '+freqLabel(r).toLowerCase()+' (récurrente)':'⚠️ récurrente supprimée';}
   return +a.contrib>0?'+'+money(a.contrib)+(a.contribFreq==='y'?' / an':' / mois'):'';}
 function projectNet(D){
-  var t=todayStr(),yrs=(parse(D)-parse(t))/864e5/365.25,acc=0,as=0,debt=0,extra=0;
-  db.accounts.forEach(function(a){acc+=accBalance(a,D)+futureRuleSum(a,D);});
-  db.assets.forEach(function(a){var f=assetFuture(a,yrs);as+=f.val;if(!a.contribBudget&&!f.linked)extra+=f.dep;});
-  db.loans.forEach(function(l){
-    debt+=loanRemaining(l,D);
-    if(l.simple){var inB=l.monthlyInBudget&&(!l.monthlyRuleId||byId(db.rules,l.monthlyRuleId));if(!inB&&+l.monthly>0)extra+=simLoan(l,D).paid-simLoan(l,t).paid;}
-    else if(!(l.ruleId&&byId(db.rules,l.ruleId)))extra+=(loanPaid(l,D)-loanPaid(l,t))*l.monthly;
-  });
-  return r2(acc+as-debt-extra);
+  var t=todayStr(),yrs=(parse(D)-parse(t))/864e5/365.25,as=0,debt=0;
+  db.assets.forEach(function(a){as+=assetFuture(a,yrs).val;});
+  db.loans.forEach(function(l){debt+=loanRemaining(l,D);});
+  return r2(as-debt);
 }
 function patProjection(t,T){
   var h='<div class="phead">Projection</div><div class="grp">';
@@ -1471,7 +1440,7 @@ function patProjection(t,T){
     var dl=r2(p-T.net),pc=T.net>0?(dl>0?'+':'')+pctTxt(dl/T.net*100)+' %':'';
     h+='<div class="row"><div class="ico" style="background:#8e8e992e">🔮</div><div class="mid"><div class="t">Dans '+n+' an'+(n>1?'s':'')+' · '+esc(monthYear(D))+'</div><div class="s">'+esc(signed(dl)+' '+cur()+' par rapport à aujourd\'hui')+'</div>'+'</div><div class="right" style="flex-direction:column;align-items:flex-end;gap:1px"><div class="amt'+(p<0?' neg':'')+'">'+esc(money(p))+'</div>'+(pc?'<div class="pctv'+(dl>0?' pos':dl<0?' neg':'')+'">'+esc(pc)+'</div>':'')+'</div></div>';
   });
-  h+='</div><div class="pempty">Estimation : tes opérations récurrentes (salaire, loyer, abonnements…) continuent à l\'identique. Les crédits se remboursent selon leur tableau d\'amortissement (un crédit saisi avec le seul solde restant garde ce montant, sauf si tu as indiqué sa mensualité). Les biens gardent leur valeur actuelle, sauf si tu indiques une évolution annuelle estimée et des versements prévus dans leur fiche (ces versements sont retirés de tes comptes, sauf s\'ils sont déjà dans ton budget).</div>';
+  h+='</div><div class="pempty">Estimation indépendante de ton budget : seuls comptent tes biens (valeur actuelle, évolution annuelle, versements prévus) et tes crédits (solde, taux, mensualité). Les comptes bancaires ne sont pas inclus.</div>';
   return h;
 }
 function histSheet(){
@@ -1503,7 +1472,6 @@ function renderPat(){
   var hasOther=db.assets.some(function(a){return a.kind!=='immo';})||T.otherDebt>0;
   function ln(label,v,cls,note){return '<div class="pline'+(cls?' '+cls:'')+'"><span>'+label+(note?'<small>'+esc(note)+'</small>':'')+'</span><b'+(v<0?' class="neg"':'')+'>'+esc(money(v))+'</b></div>';}
   var h='<div class="pnet"><div class="pl">Patrimoine net</div><div class="pv'+(T.net<0?' neg':'')+'">'+esc(money(T.net))+'</div>';
-  h+=ln('Comptes',T.acc);
   if(hasImmo){
     h+=ln('Immobilier brut',T.immoGross);
     h+=ln('Crédits immobiliers',-T.immoDebt,'indent');
@@ -1519,9 +1487,9 @@ function renderPat(){
     else h+='<button class="btn sec" id="pQuick" style="margin-top:10px">↻ Mettre à jour mes valeurs</button>';
   }
   function loanRow(l,sub){
-    var k=loanPaid(l,t),left=l.months-k,rem=loanRemaining(l,t);
+    var rem=loanRemaining(l,t);
     var as=!sub&&l.assetId?assetById(l.assetId):null;
-    var txt=l.simple?((+l.monthly>0?'Solde estimé · mensualité '+money(l.monthly)+' · ':'Solde restant')+(l.balanceDate?(+l.monthly>0?'solde saisi le ':' · saisi le ')+parse(l.balanceDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'')):('Mensualité '+money(l.monthly)+' · '+(left>0?left+' restante'+(left>1?'s':'')+' · fin '+monthYear(loanEnd(l)):'terminé'));
+    var txt=(+l.monthly>0?'Mensualité '+money(l.monthly)+(+l.rate>0?' · '+pctTxt(+l.rate)+' %':'')+' · solde estimé':'Solde restant')+(l.balanceDate?' · saisi le '+parse(l.balanceDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'');
     return '<div class="row'+(sub?' lsub':'')+'" data-loan="'+l.id+'"><div class="ico" style="background:#8e8e992e">'+(sub?'↳':'🏦')+'</div><div class="mid"><div class="t">'+esc(l.name)+(as?' <span class="rec">'+esc(as.name)+'</span>':'')+'</div><div class="s">'+esc(txt)+'</div></div><div class="right"><div class="amt'+(rem>0?' neg':'')+'">'+esc(money(rem))+'</div></div></div>';
   }
   h+='<div class="phead">Biens</div>';
@@ -1538,7 +1506,7 @@ function renderPat(){
         var g=r2(a.value-a.buy);
         parts.push((g>0?'+':'')+money(g)+' ('+(g>0?'+':'')+pctTxt(g/a.buy*100)+' %) depuis l\'achat');
       }else parts.push(k[2]);
-      if(a.contribRuleId||+a.contrib>0)parts.push(contribTxt(a));
+      if(+a.contrib>0)parts.push(contribTxt(a));
       h+='<div class="row" data-asset="'+a.id+'"><div class="ico" style="background:#8e8e992e">'+k[1]+'</div><div class="mid"><div class="t">'+esc(a.name)+'</div><div class="s">'+esc(parts.join(' · '))+'</div></div><div class="right"><div class="amt">'+esc(money(a.value))+'</div></div></div>';
       ls.forEach(function(l){h+=loanRow(l,true);});
     });
@@ -1572,9 +1540,7 @@ function assetSheet(a){
   h+='<div class="two"><div><label>S\'arrête à la valeur</label><input id="pStopV" inputmode="decimal" value="'+(a&&a.stopVal!=null&&a.stopVal!==''?numIn(a.stopVal):'')+'" placeholder="Ex. 5000"></div><div><label>Ou à la date</label><input type="date" id="pStopD" value="'+esc(a&&a.stopDate||'')+'"></div></div>';
   h+='<div class="note">Projection seulement. « % » par an, ou « '+esc(cur())+' » retirés/ajoutés une fois par an. −/+ pour une perte. Le seuil ou la date arrête l\'évolution.</div>';
   h+='<div id="pConBox" style="display:'+(noContrib(a?a.kind:'immo')?'none':'block')+'"><div id="pConAmt"><label>Versements prévus (facultatif)</label><div class="two"><input id="pCon" inputmode="decimal" value="'+numIn(a&&a.contrib)+'" placeholder="Ex. 100"><select id="pConF"><option value="m"'+(a&&a.contribFreq==='y'?'':' selected')+'>par mois</option><option value="y"'+(a&&a.contribFreq==='y'?' selected':'')+'>par an</option></select></div></div>';
-  h+='<label>Ce versement est…</label><select id="pConB"><option value="0"'+(a&&a.contribBudget?'':' selected')+'>pas encore dans mon budget</option><option value="1"'+(a&&a.contribBudget?' selected':'')+'>déjà dans une opération récurrente</option></select>';
-  h+='<div id="pConRBox" style="display:none"><label>Quelle opération récurrente ?</label><select id="pConR">'+ruleOptions(a&&a.contribRuleId)+'</select>'+(linkRules().length?'':'<div class="note">Aucune dépense récurrente trouvée. Crée-la d\'abord dans l\'onglet Récurrentes, ou choisis « pas encore dans mon budget ».</div>')+'</div>';
-  h+='<div class="note">« Pas encore dans mon budget » : tu indiques la somme ici, et la projection la retire de tes comptes (sinon ton patrimoine paraîtrait gonflé). « Déjà dans une opération récurrente » : tu choisis ta récurrente, et l\'appli lit directement son montant, ses dates et sa fin, sans rien retirer de plus. Plus de double comptage possible.</div></div>';
+  h+='<div class="note">Somme ajoutée au bien chaque mois ou chaque année dans la projection (elle n\'est pas retirée de tes comptes : le patrimoine est indépendant du budget).</div></div>';
   h+='<div id="pBuyBox" style="display:'+(noBuy(a?a.kind:'immo')?'none':'block')+'"><div class="two"><div><label>Prix d\'achat</label><input id="pBuy" inputmode="decimal" value="'+numIn(a&&a.buy)+'" placeholder="0,00"></div>';
   h+='<div><label>Date d\'achat</label><input type="date" id="pBuyD" value="'+esc(a&&a.buyDate||'')+'"></div></div></div>';
   if(!isNew){
@@ -1593,8 +1559,6 @@ function assetSheet(a){
   h+='<button class="btn sec" id="pCancel">Annuler</button>';
   openSheet(h);
   $('pCancel').onclick=closeSheet;
-  function syncCon(){var on=$('pConB').value==='1';$('pConRBox').style.display=on?'block':'none';$('pConAmt').style.display=on?'none':'block';}
-  $('pConB').onchange=syncCon;syncCon();
   (function(){var sr=$('pGrow').parentNode;sr.insertBefore($('gSeg'),sr.firstChild);})();
   $('gSeg').onclick=function(e){var b=e.target.closest('button');if(!b)return;Array.prototype.forEach.call($('gSeg').children,function(x){x.classList.toggle('on',x===b);});};
   $('pKind').onchange=function(){$('pNewK').style.display=this.value==='__new'?'block':'none';$('pConBox').style.display=noContrib(this.value)?'none':'block';$('pBuyBox').style.display=noBuy(this.value)?'none':'block';$('pName').placeholder=assetPh(this.value);};
@@ -1614,8 +1578,7 @@ function assetSheet(a){
       var kk={id:'k'+uid(),icon:$('pKIc').value.trim()||'🏷️',name:kn};
       db.customKinds.push(kk);kd=kk.id;
     }
-    var cf=$('pConF').value,cb=$('pConB').value==='1'&&!noContrib(kd),cr='';
-    if(cb){cr=$('pConR').value;if(!cr){toast('Choisis l\'opération récurrente');return;}co=0;}
+    var cf=$('pConF').value,cb=false,cr='';
     var t=todayStr();
     if(isNew){a={id:uid(),name:n,kind:kd,value:v,growth:gr,growthMode:gmv,stopVal:sv0,stopDate:sd0,contrib:co,contribFreq:cf,contribBudget:cb,contribRuleId:cr,buy:noBuy(kd)?0:by,buyDate:noBuy(kd)?'':($('pBuyD').value||''),hist:[{d:t,v:v}]};db.assets.push(a);}
     else{
@@ -1636,127 +1599,35 @@ function assetSheet(a){
       {label:'Annuler',cls:'sec'}]);
   };
 }
-function loanCatId(){
-  var c=db.cats.filter(function(x){return !x.parentId&&/^cr[ée]dit/i.test(x.name);})[0];
-  if(!c){c={id:uid(),name:'Crédit',icon:'🏦',color:'#6c757d',type:'exp',parentId:''};db.cats.push(c);}
-  return c.id;
-}
-function loanSheet(l,presetAsset,modeArg,draft){
+function loanSheet(l,presetAsset){
   var isNew=!l;
-  draft=draft||{};
-  var simple=modeArg?modeArg==='simple':(isNew||!!(l&&l.simple));
-  var canSwitch=isNew||!!(l&&l.simple);
-  var d0=(l&&!l.simple)?l:null;
-  var nm=draft.name!==undefined?draft.name:(l?l.name:'');
-  var as0=draft.asset!==undefined?draft.asset:(l?l.assetId:presetAsset);
-  function wireMode(){
-    if(!$('lMode'))return;
-    $('lMode').onclick=function(e){
-      var b=e.target.closest('button');if(!b)return;
-      var m=b.getAttribute('data-m');if((m==='simple')===simple)return;
-      loanSheet(l,presetAsset,m,{name:$('lName').value,asset:$('lAsset').value});
-    };
-  }
   var h='<h2>'+(isNew?'Nouveau crédit':'Modifier le crédit')+'</h2>';
-  if(canSwitch)h+='<div class="seg" id="lMode" style="margin-bottom:4px"><button data-m="detail" class="exp '+(simple?'':'on')+'">Détaillé</button><button data-m="simple" class="exp '+(simple?'on':'')+'">Juste le solde</button></div>';
-  h+='<label'+(canSwitch?'':' style="margin-top:0"')+'>Nom</label><input id="lName" value="'+esc(nm)+'" placeholder="Ex. Crédit immobilier, Prêt auto">';
-  h+='<label>Bien concerné (facultatif)</label><select id="lAsset"><option value="">Aucun</option>'+db.assets.map(function(a){return '<option value="'+a.id+'"'+(as0===a.id?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+'</select>';
-  if(simple){
-    h+='<label>Montant restant dû ('+esc(cur())+')</label><input id="lBal" inputmode="decimal" value="'+(l&&l.simple?numIn(l.balance):'')+'" placeholder="0,00">';
-    h+='<div class="note">Pratique si tu n\'as pas le taux, la durée ou le tableau d\'amortissement : seul le solde restant compte dans ton patrimoine. Sans mensualité, ce montant reste fixe : pense à le mettre à jour de temps en temps.'+(l&&l.simple&&l.balanceDate?' Dernière mise à jour : '+esc(parse(l.balanceDate).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}))+'.':'')+'</div>';
-    h+='<label>Taux annuel en % (facultatif)</label><input id="lSRate" inputmode="decimal" value="'+(l&&l.simple&&+l.rate>0?numIn(l.rate):'')+'" placeholder="Ex. 3,5">';
-    h+='<label>Cette mensualité est…</label><select id="lSB"><option value="0"'+(l&&l.simple&&l.monthlyInBudget?'':' selected')+'>pas encore dans mon budget (je la saisis)</option><option value="1"'+(l&&l.simple&&l.monthlyInBudget?' selected':'')+'>déjà dans une opération récurrente</option></select>';
-    h+='<div id="lSMoBox"><label>Mensualité (facultatif)</label><input id="lSMo" inputmode="decimal" value="'+(l&&l.simple&&+l.monthly>0?numIn(l.monthly):'')+'" placeholder="Ex. 850"></div>';
-    h+='<div id="lSRBox" style="display:none"><label>Quelle opération récurrente ?</label><select id="lSR">'+ruleOptions(l&&l.simple&&l.monthlyRuleId)+'</select>'+(linkRules().length?'':'<div class="note">Aucune dépense récurrente trouvée. Crée-la d\'abord dans l\'onglet Récurrentes, ou choisis « pas encore dans mon budget ».</div>')+'</div>';
-    h+='<div class="note">Avec la mensualité (et si possible le taux), le solde diminue tout seul chaque mois à partir d\'aujourd\'hui. « Pas encore dans mon budget » : la projection retire la mensualité de tes comptes. « Déjà dans une opération récurrente » : tu choisis ta récurrente, qui retire déjà l\'argent du compte, et rien n\'est compté deux fois. Sans taux, tout le montant sert à rembourser le capital.</div>';
-    h+='<button class="btn" id="lSave">Enregistrer</button>';
-    if(!isNew)h+='<button class="btn del" id="lDel">Supprimer</button>';
-    h+='<button class="btn sec" id="lCancel">Annuler</button>';
-    openSheet(h);
-    var syncLoan=function(){var on=$('lSB').value==='1';$('lSRBox').style.display=on?'block':'none';$('lSMoBox').style.display=on?'none':'block';};
-    $('lSB').onchange=syncLoan;syncLoan();
-    wireMode();
-    $('lCancel').onclick=closeSheet;
-    $('lSave').onclick=function(){
-      var n1=$('lName').value.trim();if(!n1){toast('Donne un nom au crédit');return;}
-      var b=parseAmount($('lBal').value);
-      if(!(b>0)){toast('Montant restant invalide');return;}
-      var mo1=$('lSMo').value.trim()===''?0:parseAmount($('lSMo').value);
-      var rt1=$('lSRate').value.trim()===''?0:parseAmount($('lSRate').value);
-      if(mo1===null||mo1<0){toast('Mensualité invalide');return;}
-      if(rt1===null||rt1<0){toast('Taux invalide');return;}
-      var on1=$('lSB').value==='1',mr1='';
-      if(on1){mr1=$('lSR').value;if(!mr1){toast('Choisis l\'opération récurrente');return;}var rr1=byId(db.rules,mr1);if(rr1)mo1=Math.abs(rr1.amount);}
-      var t1=todayStr();
-      var o={name:n1,assetId:$('lAsset').value,simple:true,balance:r2(b),balanceDate:t1,principal:r2(b),rate:rt1,months:0,first:t1,monthly:r2(mo1),monthlyInBudget:on1,monthlyRuleId:mr1};
-      if(isNew){o.id=uid();o.ruleId='';db.loans.push(o);}
-      else for(var k1 in o)l[k1]=o[k1];
-      save();closeSheet();render();
-    };
-    if($('lDel'))$('lDel').onclick=function(){
-      choose('Supprimer « '+l.name+' » ?',[{label:'Supprimer le crédit',cls:'del',fn:function(){db.loans=db.loans.filter(function(x){return x!==l;});save();closeSheet();render();}},{label:'Annuler',cls:'sec'}]);
-    };
-    return;
-  }
-  h+='<label>Capital emprunté ('+esc(cur())+')</label><input id="lCap" inputmode="decimal" value="'+numIn(d0&&d0.principal)+'" placeholder="0,00">';
-  h+='<label>Taux annuel (%)</label><input id="lRate" inputmode="decimal" value="'+(d0?numIn(d0.rate):'')+'" placeholder="Ex. 3,5 (hors assurance)">';
-  h+='<label>Durée (en mois)</label><input id="lMonths" inputmode="numeric" value="'+(d0?d0.months:'')+'" placeholder="Ex. 240 pour 20 ans">';
-  h+='<label>Date de la 1re mensualité</label><input type="date" id="lFirst" value="'+esc(d0?d0.first:todayStr())+'">';
-  h+='<label>Mensualité (laisse vide pour la calculer)</label><input id="lMonthly" inputmode="decimal" value="'+(d0?numIn(d0.monthly):'')+'" placeholder="Calculée automatiquement">';
-  h+='<div class="note" id="lNote"></div>';
-  var hasRule=l&&l.ruleId&&byId(db.rules,l.ruleId);
-  if(hasRule)h+='<div class="note">Les mensualités sont déjà dans tes opérations récurrentes. Pour changer leur montant, modifie-les dans l\'onglet Récurrentes.</div>';
-  else{
-    h+='<label class="chkrow"><input type="checkbox" id="lRule"'+(isNew||(l&&l.simple)?' checked':'')+'> Ajouter les mensualités à mon budget</label>';
-    h+='<label>Compte débité</label><select id="lAcc">'+db.accounts.map(function(a){return '<option value="'+a.id+'"'+(a.id===curAcc().id?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+'</select>';
-  }
+  h+='<label style="margin-top:0">Nom</label><input id="lName" value="'+esc(l?l.name:'')+'" placeholder="Ex. Crédit immobilier, Prêt auto">';
+  h+='<label>Bien concerné (facultatif)</label><select id="lAsset"><option value="">Aucun</option>'+db.assets.map(function(a){return '<option value="'+a.id+'"'+((l?l.assetId:presetAsset)===a.id?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+'</select>';
+  h+='<label>Montant restant dû ('+esc(cur())+')</label><input id="lBal" inputmode="decimal" value="'+(l?numIn(l.balance):'')+'" placeholder="0,00">';
+  h+='<div class="two"><div><label>Mensualité</label><input id="lMo" inputmode="decimal" value="'+(l&&+l.monthly>0?numIn(l.monthly):'')+'" placeholder="Ex. 850"></div><div><label>Taux annuel (%)</label><input id="lRate" inputmode="decimal" value="'+(l&&+l.rate>0?numIn(l.rate):'')+'" placeholder="Ex. 3,5"></div></div>';
+  h+='<div class="note">Le solde diminue tout seul chaque mois à partir d\'aujourd\'hui, avec la mensualité et le taux (sans mensualité, il reste fixe). Ce calcul est indépendant de ton budget et de tes comptes.'+(l&&l.balanceDate?' Dernière mise à jour du solde : '+esc(parse(l.balanceDate).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}))+'.':'')+'</div>';
   h+='<button class="btn" id="lSave">Enregistrer</button>';
   if(!isNew)h+='<button class="btn del" id="lDel">Supprimer</button>';
   h+='<button class="btn sec" id="lCancel">Annuler</button>';
   openSheet(h);
-  wireMode();
-  function read(){
-    var P=parseAmount($('lCap').value),rt=$('lRate').value.trim()===''?0:parseAmount($('lRate').value),n=parseInt($('lMonths').value,10);
-    var mo=$('lMonthly').value.trim()===''?null:parseAmount($('lMonthly').value);
-    return {P:P,rt:rt,n:n,mo:mo};
-  }
-  function upd(){
-    var v=read(),el=$('lNote');
-    if(v.P>0&&v.rt!==null&&v.rt>=0&&v.n>0){
-      var m=v.mo>0?v.mo:loanCalc(v.P,v.rt,v.n);
-      el.textContent='Mensualité '+money(m)+' · coût total des intérêts : '+money(r2(m*v.n-v.P));
-    }else el.textContent='Renseigne le capital, le taux et la durée pour calculer la mensualité.';
-  }
-  ['lCap','lRate','lMonths','lMonthly'].forEach(function(id){$(id).oninput=upd;});
-  upd();
   $('lCancel').onclick=closeSheet;
   $('lSave').onclick=function(){
-    var n0=$('lName').value.trim();if(!n0){toast('Donne un nom au crédit');return;}
-    var v=read();
-    if(!(v.P>0)){toast('Capital invalide');return;}
-    if(v.rt===null||v.rt<0){toast('Taux invalide');return;}
-    if(!(v.n>=1&&v.n<=600)){toast('Durée invalide (1 à 600 mois)');return;}
-    if(v.mo===null&&$('lMonthly').value.trim()!==''){toast('Mensualité invalide');return;}
-    if(!$('lFirst').value){toast('Indique la date de la 1re mensualité');return;}
-    var mo=v.mo>0?r2(v.mo):loanCalc(v.P,v.rt,v.n);
-    var obj={name:n0,assetId:$('lAsset').value,principal:v.P,rate:v.rt,months:v.n,first:$('lFirst').value,monthly:mo,simple:false};
-    if(isNew){obj.id=uid();obj.ruleId='';l=obj;db.loans.push(l);}
-    else{for(var k in obj)l[k]=obj[k];delete l.balance;delete l.balanceDate;}
-    if(!hasRule&&$('lRule')&&$('lRule').checked){
-      var t=todayStr(),paid=loanPaid(l,t);
-      if(paid<l.months){
-        var rule={id:uid(),title:l.name,note:'',amount:-l.monthly,catId:loanCatId(),freq:'m',interval:1,start:addMonths(l.first,paid),end:'',nextIndex:0,accId:$('lAcc').value,pattern:'same',wk:'',count:l.months-paid,est:false};
-        db.rules.push(rule);l.ruleId=rule.id;
-      }else toast('Crédit déjà terminé : aucune mensualité à planifier');
-    }
+    var n1=$('lName').value.trim();if(!n1){toast('Donne un nom au crédit');return;}
+    var b=parseAmount($('lBal').value);
+    if(!(b>0)){toast('Montant restant invalide');return;}
+    var mo1=$('lMo').value.trim()===''?0:parseAmount($('lMo').value);
+    var rt1=$('lRate').value.trim()===''?0:parseAmount($('lRate').value);
+    if(mo1===null||mo1<0){toast('Mensualité invalide');return;}
+    if(rt1===null||rt1<0){toast('Taux invalide');return;}
+    var t1=todayStr();
+    var o={name:n1,assetId:$('lAsset').value,simple:true,balance:r2(b),balanceDate:t1,principal:r2(b),rate:rt1,months:0,first:t1,monthly:r2(mo1),monthlyInBudget:false,monthlyRuleId:'',ruleId:''};
+    if(isNew){o.id=uid();db.loans.push(o);}
+    else for(var k1 in o)l[k1]=o[k1];
     save();closeSheet();render();
   };
   if($('lDel'))$('lDel').onclick=function(){
-    var rl=l.ruleId?byId(db.rules,l.ruleId):null;
-    var opts=[{label:'Supprimer le crédit',cls:'del',fn:function(){db.loans=db.loans.filter(function(x){return x!==l;});save();closeSheet();render();}}];
-    if(rl)opts.unshift({label:'Supprimer le crédit et ses mensualités à venir',cls:'del',fn:function(){deleteRule(rl);db.loans=db.loans.filter(function(x){return x!==l;});save();closeSheet();render();}});
-    opts.push({label:'Annuler',cls:'sec'});
-    choose('Supprimer « '+l.name+' » ?',opts);
+    choose('Supprimer « '+l.name+' » ?',[{label:'Supprimer le crédit',cls:'del',fn:function(){db.loans=db.loans.filter(function(x){return x!==l;});save();closeSheet();render();}},{label:'Annuler',cls:'sec'}]);
   };
 }
 
