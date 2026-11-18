@@ -128,6 +128,7 @@ nav button{position:relative}
 .chev{border:0;background:none;color:var(--muted);font-size:18px;width:40px;height:40px;border-radius:12px;cursor:pointer;flex:none;font-family:inherit}
 .chev:active{background:var(--accentSoft)}
 .catbar{display:flex;gap:8px;margin:0 2px 10px}
+.mvb{display:flex;flex-direction:column;gap:4px;margin-left:10px}.mvb button{border:0;background:var(--accentSoft);color:var(--accent);border-radius:8px;width:34px;height:24px;font-size:11px;font-weight:700;padding:0;cursor:pointer}
 .catbar button{border:0;background:var(--accentSoft);color:var(--accent);font-weight:700;font-size:13px;padding:8px 14px;border-radius:999px;font-family:inherit;cursor:pointer}
 .fieldbtn{display:flex;align-items:center;gap:10px;width:100%;border:0;background:var(--field);color:var(--text);border-radius:14px;padding:9px 13px;font-size:16px;font-family:inherit;text-align:left;cursor:pointer;min-height:50px}
 .fieldbtn .mini{width:30px;height:30px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
@@ -1284,6 +1285,13 @@ var GICONS=['🎯','✈️','🏠','🚗','💍','🎓','🎁','🛟','🏖️',
 function kindOf(k){var L=allKinds();for(var i=0;i<L.length;i++)if(L[i][0]===k)return L[i];return KINDS[KINDS.length-1];}
 function byId(list,id){for(var i=0;i<list.length;i++)if(list[i].id===id)return list[i];return null;}
 function assetById(id){return byId(db.assets,id);}
+function sortedAssets(){
+  var so=db.settings.assetSort||'value',L=db.assets.slice();
+  if(so==='manual')return L;
+  if(so==='alpha')return L.sort(function(a,b){return (a.name||'').localeCompare(b.name||'','fr');});
+  if(so==='kind'){var ks=allKinds().map(function(k){return k[0];});return L.sort(function(a,b){return ks.indexOf(a.kind)-ks.indexOf(b.kind)||(+b.value||0)-(+a.value||0);});}
+  return L.sort(function(a,b){return (+b.value||0)-(+a.value||0);});
+}
 function loanById(id){return byId(db.loans,id);}
 function numIn(n){return n?String(n).replace('.',','):'';}
 function pctTxt(n){return n.toLocaleString('fr-FR',{maximumFractionDigits:1});}
@@ -1495,8 +1503,10 @@ function renderPat(){
   h+='<div class="phead">Biens</div>';
   if(!db.assets.length)h+='<div class="pempty">Aucun bien pour l\'instant. Appuie sur + pour ajouter une maison, une voiture, une montre…</div>';
   else{
+    var so=db.settings.assetSort||'value';
+    h+='<div class="catbar" style="align-items:center"><span style="font-size:13px;color:var(--muted);font-weight:600">Trier par</span><select id="assetSort" style="border:0;background:var(--accentSoft);color:var(--accent);font-weight:700;font-size:13px;padding:8px 12px;border-radius:999px;font-family:inherit"><option value="value">Valeur</option><option value="kind">Type de bien</option><option value="alpha">Ordre alphabétique</option><option value="manual">Mon ordre (flèches)</option></select></div>';
     h+='<div class="grp">';
-    db.assets.slice().sort(function(a,b){return (+b.value||0)-(+a.value||0);}).forEach(function(a){
+    sortedAssets().forEach(function(a){
       var k=kindOf(a.kind),parts=[];
       var ls=db.loans.filter(function(l){return l.assetId===a.id;});
       if(ls.length){
@@ -1507,7 +1517,7 @@ function renderPat(){
         parts.push((g>0?'+':'')+money(g)+' ('+(g>0?'+':'')+pctTxt(g/a.buy*100)+' %) depuis l\'achat');
       }else parts.push(k[2]);
       if(+a.contrib>0)parts.push(contribTxt(a));
-      h+='<div class="row" data-asset="'+a.id+'"><div class="ico" style="background:#8e8e992e">'+k[1]+'</div><div class="mid"><div class="t">'+esc(a.name)+'</div><div class="s">'+esc(parts.join(' · '))+'</div></div><div class="right"><div class="amt">'+esc(money(a.value))+'</div></div></div>';
+      h+='<div class="row" data-asset="'+a.id+'"><div class="ico" style="background:#8e8e992e">'+k[1]+'</div><div class="mid"><div class="t">'+esc(a.name)+'</div><div class="s">'+esc(parts.join(' · '))+'</div></div><div class="right"><div class="amt">'+esc(money(a.value))+'</div></div>'+(so==='manual'?'<div class="mvb"><button type="button" data-mv="-1" data-id="'+a.id+'" aria-label="Monter">▲</button><button type="button" data-mv="1" data-id="'+a.id+'" aria-label="Descendre">▼</button></div>':'')+'</div>';
       ls.forEach(function(l){h+=loanRow(l,true);});
     });
     h+='</div>';
@@ -1521,6 +1531,7 @@ function renderPat(){
   }
   h+=patProjection(t,T)+patEvolution(t,T);
   $('content').innerHTML='<div class="pad pat">'+h+'</div>';
+  if($('assetSort')){$('assetSort').value=db.settings.assetSort||'value';$('assetSort').onchange=function(){db.settings.assetSort=this.value;save();renderPat();};}
 }
 function patAddMenu(){
   choose('Que veux-tu ajouter ?',[
@@ -1672,6 +1683,11 @@ $('content').onclick=function(e){
     if(t.checked){confirmUncheck([t],function(){setChecked(t,false);save();render(true);toast('Pointage retiré');});}
     else{pointTx(t,function(){save();render(true);});}
   }return;}
+  var mv=e.target.closest('[data-mv]');
+  if(mv){e.stopPropagation();var id=mv.getAttribute('data-id'),dir=+mv.getAttribute('data-mv'),i0=-1;
+    db.assets.forEach(function(a,i){if(a.id===id)i0=i;});var i1=i0+dir;
+    if(i0>=0&&i1>=0&&i1<db.assets.length){var tmp=db.assets[i0];db.assets[i0]=db.assets[i1];db.assets[i1]=tmp;save();renderPat();}
+    return;}
   var row=e.target.closest('.row');
   if(row){
     if(row.hasAttribute('data-cat')){catSheet(catById(row.getAttribute('data-cat')));return;}
